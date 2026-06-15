@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quản lý sản phẩm - Thetra</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="ProductManagement.css">
+</head>
+<body>
+
+  <!-- Sidebar (bạn có thể include hoặc copy từ file Sidebar.html) -->
+  <!-- <include sidebar here> -->
+
+  <div class="main-content">
+    <div class="page-header">
+      <h1>Quản lý sản phẩm</h1>
+    </div>
+
+    <div class="action-section">
+      <h2>Niêm yết sản phẩm bằng phương thức bạn muốn</h2>
+
+      <div class="action-cards">
+        <!-- Card 1 -->
+        <div class="action-card">
+          <div class="card-icon">+</div>
+          <h3>Thêm từng sản phẩm</h3>
+          <p>Thêm sản phẩm bằng cách tự nhập thông tin.</p>
+          <button class="btn btn-primary">Thêm sản phẩm</button>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="action-card">
+          <div class="card-icon">📋</div>
+          <h3>Niêm yết sản phẩm hiện có</h3>
+          <p>Tìm kiếm sản phẩm khớp trên TikTok Shop để tự động điền thông tin niêm yết.</p>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="action-card">
+          <div class="card-icon">↑</div>
+          <h3>Tải lên hàng loạt</h3>
+          <p>Niêm yết nhiều sản phẩm cùng lúc bằng mẫu Excel.</p>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="action-card">
+          <div class="card-icon">Q</div>
+          <h3>Sản phẩm không bán</h3>
+          <p>Sản phẩm không bày bán chỉ có thể dùng qua công cụ khi mua. Khách hàng không thấy.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active">Tất cả</button>
+      <button class="tab">Trên kệ</button>
+      <button class="tab">Đang xem xét</button>
+      <button class="tab">Cần chú ý</button>
+      <button class="tab">Đã vô hiệu hóa</button>
+      <button class="tab">Bán nhập</button>
+      <button class="tab">Đã xóa</button>
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state">
+      <div class="empty-icon">😊</div>
+      <h3>Chưa có sản phẩm</h3>
+      <p>Bắt đầu bằng cách thêm sản phẩm hoặc kiểm tra các cách niêm yết khác.</p>
+      <div class="empty-actions">
+        <button class="btn btn-primary">Thêm sản phẩm</button>
+        <button class="btn btn-secondary">Xem các cách niêm yết</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

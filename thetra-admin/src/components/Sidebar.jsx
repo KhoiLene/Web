@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import "./Sidebar.css";
 
+
 // ─── Icon ─────────────────────────────────────────────────────────────────────
 const Icon = ({ name, className = "" }) => (
   <i className={`${name} ${className}`} aria-hidden="true" />
