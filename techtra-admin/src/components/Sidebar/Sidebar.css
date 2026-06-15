@@ -12,6 +12,7 @@
   display: flex;
   flex-direction: column;
   font-family: 'Nunito', 'Inter', sans-serif;
+  user-select: none; /* Ngăn bôi đen văn bản khi click nhanh nhiều lần */
 }
 .sidebar::-webkit-scrollbar { width: 4px; }
 .sidebar::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 4px; }
@@ -52,6 +53,9 @@
   padding: 6px 0;
   flex: 1;
 }
+.nav-list li {
+  list-style: none !important; /* Triệt tiêu triệt để dấu chấm tròn nếu có */
+}
 
 /* ─── Section label ──────────────────────────────────────────────────────── */
 .section-label {
@@ -71,23 +75,24 @@
   margin: 4px 0;
 }
 
-/* ─── Top-level items ────────────────────────────────────────────────────── */
+/* ─── Top-level items (Cả button, link và div điều hướng) ─────────────────── */
 .nav-top-btn,
 .nav-top-link {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 9px 16px;
+  padding: 10px 16px;
   font-size: 13.5px;
   font-weight: 600;
   color: #3d4349;
-  background: none;
+  background: transparent;
   border: none;
   text-decoration: none;
   cursor: pointer;
   text-align: left;
-  transition: background 0.13s, color 0.13s;
+  box-sizing: border-box;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 .nav-top-btn:hover,
 .nav-top-link:hover {
@@ -113,7 +118,7 @@
 }
 
 /* ─── Label ──────────────────────────────────────────────────────────────── */
-.nav-label { flex: 1; }
+.nav-label { flex: 1; pointer-events: none; } /* Tránh lỗi click trúng chữ bị cản sự kiện */
 
 /* ─── Badge ──────────────────────────────────────────────────────────────── */
 .nav-badge {
@@ -125,6 +130,7 @@
   padding: 1px 7px;
   min-width: 22px;
   text-align: center;
+  pointer-events: none;
 }
 
 /* ─── Arrow ──────────────────────────────────────────────────────────────── */
@@ -133,28 +139,33 @@
   color: #9aa0ac;
   transition: transform 0.2s ease;
   margin-left: auto;
+  pointer-events: none;
 }
 .nav-arrow.rotated { transform: rotate(180deg); }
 
-/* ─── Submenu ────────────────────────────────────────────────────────────── */
+/* ─── Submenu Container ──────────────────────────────────────────────────── */
 .submenu {
   list-style: none;
   margin: 0;
   padding: 0;
   overflow: hidden;
-  max-height: 0;
-  transition: max-height 0.22s ease;
+  /* Chuyển động mượt mà được xử lý đồng bộ thông qua JS Inline Style */
+  transition: max-height 0.25s ease-in-out; 
 }
 
-/* ─── Sub links ──────────────────────────────────────────────────────────── */
+/* ─── Sub links (Đã tối ưu cho cả thẻ div tương tác) ─────────────────────── */
 .sub-link {
   display: block;
-  padding: 7px 16px 7px 44px;
+  width: 100%;
+  padding: 8px 16px 8px 44px;
   font-size: 13px;
   font-weight: 500;
   color: #5f6368;
   text-decoration: none;
-  transition: background 0.12s, color 0.12s;
+  cursor: pointer;
+  box-sizing: border-box;
+  text-align: left;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 .sub-link:hover {
   background: #f1f3f4;

@@ -1,0 +1,202 @@
+/* Header */
+/* Thêm đoạn này vào ĐẦU FILE CSS của bạn */
+.product-group-wrapper {
+  flex: 1;
+  padding: 24px;
+  background-color: #f9fafb; /* Tạo nền xám nhạt làm nổi bật khung trắng */
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+.group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.group-header h1 {
+  font-size: 24px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.btn-add-group {
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.btn-add-group:hover {
+  background-color: #1d4ed8;
+}
+
+/* Container */
+.group-container {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  padding: 20px;
+}
+
+/* Filter Tab */
+.filter-tab {
+  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 16px;
+}
+
+.tab-btn.active {
+  color: #2563eb;
+  background: #eff6ff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+/* Search Row */
+.search-filter-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.search-box {
+  position: relative;
+  flex: 1;
+}
+
+.search-box i {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 10px 12px 10px 36px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  outline: none;
+  font-size: 14px;
+}
+
+.btn-sort {
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  width: 42px;
+  cursor: pointer;
+  color: #4b5563;
+}
+
+/* Filter Actions */
+.filter-action {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.btn-filter-trigger {
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #374151;
+  cursor: pointer;
+}
+
+.btn-add-filter {
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  color: #374151;
+}
+
+.summary-text {
+  font-size: 14px;
+  color: #4b5563;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+/* Table Design */
+.group-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.group-table th {
+  background: #f9fafb;
+  color: #374151;
+  font-weight: 600;
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.group-table td {
+  padding: 16px;
+  border-bottom: 1px solid #f3f4f6;
+  color: #4b5563;
+  vertical-align: middle;
+}
+
+.group-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.img-placeholder {
+  width: 40px;
+  height: 40px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-size: 18px;
+}
+
+.group-link {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.group-link:hover {
+  text-decoration: underline;
+}
+
+.condition-cell {
+  color: #9ca3af;
+}
+
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
