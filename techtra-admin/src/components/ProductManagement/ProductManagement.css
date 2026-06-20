@@ -1,5 +1,6 @@
 /* ProductManagement.css */
 
+/* ─── RESET & BASE STYLES ────────────────────────────────────── */
 * {
   margin: 0;
   padding: 0;
@@ -7,152 +8,201 @@
 }
 
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: #f8f9fa;
-  color: #333;
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Đổi sang font Inter hiện đại hơn nếu có */
+  background: #f1f5f9; /* Màu nền xám xanh dịu mắt, sang hơn màu #f8f9fa */
+  color: #1e293b; /* Màu chữ chính đậm đà, tăng độ tương phản rõ nét */
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Main Content */
+/* ─── MAIN CONTENT CONTAINER ─────────────────────────────────── */
 .main-content {
-  padding: 24px;
-  margin-left: 260px; /* Điều chỉnh theo chiều rộng sidebar của bạn */
+  padding: 32px;
   min-height: 100vh;
+  width: 100%;
+  transition: all 0.3s ease;
 }
 
-/* Header */
+/* ─── HEADER SECTION ─────────────────────────────────────────── */
+.page-header {
+  margin-bottom: 28px;
+}
+
 .page-header h1 {
-  font-size: 28px;
-  font-weight: 600;
-  margin-bottom: 24px;
-  color: #1f2937;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0f172a;
 }
 
-/* Action Section */
+/* ─── ACTION SECTION (CARDSGRID) ────────────────────────────── */
+.action-section {
+  margin-bottom: 36px;
+}
+
 .action-section h2 {
-  font-size: 18px;
+  font-size: 16px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b; /* Chuyển thành màu phụ tinh tế */
   margin-bottom: 16px;
-  color: #1f2937;
 }
 
 .action-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
-  margin-bottom: 32px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
 }
 
+/* Kiểu dáng Action Card sang trọng hơn */
 .action-card {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px; /* Bo góc mềm mại hơn */
   padding: 24px;
-  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .action-card:hover {
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  transform: translateY(-4px); /* Tạo hiệu ứng nhấc thẻ lên khi di chuột */
+  box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
   border-color: #10b981;
 }
 
 .card-icon {
-  font-size: 32px;
-  margin-bottom: 16px;
-  height: 48px;
-  display: block;
+  font-size: 36px;
+  margin-bottom: 14px;
+  height: auto;
+  display: inline-block;
 }
 
 .action-card h3 {
   font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
   margin-bottom: 8px;
-  color: #1f2937;
 }
 
 .action-card p {
-  color: #6b7280;
-  line-height: 1.5;
+  color: #64748b;
+  line-height: 1.6;
   font-size: 14px;
+  flex-grow: 1; /* Đẩy button luôn nằm sát đáy nếu độ dài văn bản lệch nhau */
+  margin-bottom: 16px;
 }
 
-/* Buttons */
+/* ─── BUTTONS SYSTEM ────────────────────────────────────────── */
 .btn {
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 8px; /* Bo góc đồng bộ card */
+  font-weight: 600;
+  font-size: 14px;
   cursor: pointer;
   border: none;
-  font-size: 14px;
-  margin-top: 12px;
+  transition: all 0.2s ease;
+  width: max-content; /* Nút thu gọn vừa văn bản chứ không kéo dài dài */
+}
+
+/* Nút bấm có tương tác co giãn (Active Scale) */
+.btn:active {
+  transform: scale(0.97);
 }
 
 .btn-primary {
   background: #10b981;
-  color: white;
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
 }
 
 .btn-primary:hover {
   background: #059669;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
 }
 
 .btn-secondary {
-  background: #e5e7eb;
-  color: #374151;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
 }
 
 .btn-secondary:hover {
-  background: #d1d5db;
+  background: #e2e8f0;
+  color: #1e293b;
 }
 
-/* Tabs */
+/* ─── TABS NAVIGATION ────────────────────────────────────────── */
 .tabs {
   display: flex;
-  gap: 2px;
-  border-bottom: 1px solid #e5e7eb;
+  gap: 8px;
+  border-bottom: 2px solid #e2e8f0;
   margin-bottom: 32px;
-  flex-wrap: wrap;
+  padding-bottom: 2px;
 }
 
 .tab {
-  padding: 12px 24px;
+  padding: 12px 20px;
   background: none;
   border: none;
   font-size: 15px;
-  color: #6b7280;
+  font-weight: 500;
+  color: #64748b;
   cursor: pointer;
-  border-bottom: 3px solid transparent;
-  transition: all 0.2s;
+  position: relative;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px; /* Đè khít lên đường border của container .tabs */
+  transition: all 0.2s ease;
+}
+
+.tab:hover {
+  color: #10b981;
 }
 
 .tab.active {
   color: #10b981;
-  border-bottom: 3px solid #10b981;
   font-weight: 600;
+  border-bottom: 2px solid #10b981;
 }
 
-/* Empty State */
+/* ─── EMPTY STATE SECTION ────────────────────────────────────── */
 .empty-state {
   text-align: center;
-  padding: 80px 20px;
-  background: white;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  padding: 60px 40px;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px dashed #cbd5e1; /* Đổi sang nét đứt tạo cảm giác trống trải trực quan */
+  max-width: 600px;
+  margin: 40px auto;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.01), 0 2px 4px -1px rgba(0, 0, 0, 0.01);
 }
 
 .empty-icon {
-  font-size: 70px;
-  margin-bottom: 16px;
+  font-size: 64px;
+  margin-bottom: 20px;
+  display: block;
+  animation: floatEffect 3s ease-in-out infinite; /* Thêm hiệu ứng bay nhẹ cho sinh động */
 }
 
 .empty-state h3 {
-  font-size: 20px;
+  font-size: 18px;
+  font-weight: 600;
   margin-bottom: 8px;
-  color: #1f2937;
+  color: #0f172a;
 }
 
 .empty-state p {
-  color: #6b7280;
-  max-width: 420px;
+  color: #64748b;
+  max-width: 380px;
   margin: 0 auto 24px;
-  line-height: 1.5;
+  line-height: 1.6;
+  font-size: 14px;
 }
 
 .empty-actions {
@@ -160,4 +210,25 @@ body {
   justify-content: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+/* ─── KEYFRAMES (HIỆU ỨNG ANIMATION) ─────────────────────────── */
+@keyframes floatEffect {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* Responsive tinh chỉnh nhỏ cho màn hình di động */
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0; /* Trả lại không gian nếu ẩn sidebar trên mobile */
+    padding: 16px;
+  }
+  .action-cards {
+    grid-template-columns: 1fr;
+  }
 }

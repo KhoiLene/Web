@@ -1,50 +1,149 @@
-// src/api.js — Dùng chung cho toàn bộ project
-// ─────────────────────────────────────────────────────────────────────────────
+// src/api.js — Supabase version (NO backend)
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+// ─────────────────────────────────────────────
+import { createClient } from "@supabase/supabase-js";
 
-function getToken() {
-  return localStorage.getItem("admin_token");
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ─────────────────────────────────────────────
+// Helper
+function handleResponse({ data, error }) {
+  if (error) throw new Error(error.message);
+  return {
+    success: true,
+    data,
+    total: Array.isArray(data) ? data.length : 1,
+  };
 }
 
-export async function apiFetch(endpoint, options = {}) {
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
-      ...(options.headers || {}),
-    },
-  });
-
-  if (res.status === 401) {
-    localStorage.removeItem("admin_token");
-    window.location.href = "/login";
-    return;
-  }
-
-  const data = await res.json();
-  if (!data.success) throw new Error(data.error || "Lỗi không xác định");
-  return data;
-}
-
-// ─── Product Groups API ───────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// ─── Product Groups API
+// ─────────────────────────────────────────────
 export const productGroupsApi = {
-  getAll: ()           => apiFetch("/product-groups"),
-  getOne: (id)         => apiFetch(`/product-groups/${id}`),
-  create: (body)       => apiFetch("/product-groups", { method: "POST", body: JSON.stringify(body) }),
-  update: (id, body)   => apiFetch(`/product-groups/${id}`, { method: "PUT", body: JSON.stringify(body) }),
-  remove: (id)         => apiFetch(`/product-groups/${id}`, { method: "DELETE" }),
+  async getAll() {
+    return handleResponse(
+      await supabase
+        .from("product_groups")
+        .select("*")
+        .order("sort_order", { ascending: true })
+    );
+  },
+
+  async getOne(id) {
+    return handleResponse(
+      await supabase
+        .from("product_groups")
+        .select("*")
+        .eq("id", id)
+        .single()
+    );
+  },
+
+  async create(body) {
+    return handleResponse(
+      await supabase
+        .from("product_groups")
+        .insert([body])
+        .select()
+        .single()
+    );
+  },
+
+  async update(id, body) {
+    return handleResponse(
+      await supabase
+        .from("product_groups")
+        .update(body)
+        .eq("id", id)
+        .select()
+        .single()
+    );
+  },
+
+  async remove(id) {
+    return handleResponse(
+      await supabase
+        .from("product_groups")
+        .delete()
+        .eq("id", id)
+    );
+  },
 };
 
-// ─── Products API ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// ─── Products API
+// ─────────────────────────────────────────────
 export const productsApi = {
-  getAll: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiFetch(`/products${query ? `?${query}` : ""}`);
+  async getAll(params = {}) {
+    let query = supabase.from("products").select("*");
+
+    // filter
+    if (params.group_id) {
+      query = query.eq("group_id", params.group_id);
+    }
+
+    if (params.status) {
+      query = query.eq("status", params.status);
+    }
+
+    // search
+    if (params.search) {
+      query = query.ilike("name", `%${params.search}%`);
+    }
+
+    // pagination
+    if (params.page && params.limit) {
+      const from = (params.page - 1) * params.limit;
+      const to = from + params.limit - 1;
+      query = query.range(from, to);
+    }
+
+    // sort
+    query = query.order("created_at", { ascending: false });
+
+    return handleResponse(await query);
   },
-  getOne: (id)         => apiFetch(`/products/${id}`),
-  create: (body)       => apiFetch("/products", { method: "POST", body: JSON.stringify(body) }),
-  update: (id, body)   => apiFetch(`/products/${id}`, { method: "PUT", body: JSON.stringify(body) }),
-  remove: (id)         => apiFetch(`/products/${id}`, { method: "DELETE" }),
+
+  async getOne(id) {
+    return handleResponse(
+      await supabase
+        .from("products")
+        .select("*")
+        .eq("id", id)
+        .single()
+    );
+  },
+
+  async create(body) {
+    return handleResponse(
+      await supabase
+        .from("products")
+        .insert([body])
+        .select()
+        .single()
+    );
+  },
+
+  async update(id, body) {
+    return handleResponse(
+      await supabase
+        .from("products")
+        .update(body)
+        .eq("id", id)
+        .select()
+        .single()
+    );
+  },
+
+  async remove(id) {
+    return handleResponse(
+      await supabase
+        .from("products")
+        .delete()
+        .eq("id", id)
+    );
+  },
 };
