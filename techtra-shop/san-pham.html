@@ -1,3 +1,5 @@
+</body>
+</html> -->
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -6,10 +8,11 @@
 <title>Đang tải sản phẩm... | Techtra</title>
 <link rel="stylesheet" href="san-pham.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+
 </head>
 <body>
 
-  <!-- ─── HEADER ─────────────────────────────────────────────────────────── -->
   <header class="topbar">
     <div class="topbar-inner">
       <a href="/" class="logo">techtra<span>.</span></a>
@@ -28,18 +31,15 @@
     </div>
   </header>
 
-  <!-- ─── LOADING / ERROR ────────────────────────────────────────────────── -->
   <div class="state-message" id="loadingState">⌛ Đang tải sản phẩm...</div>
   <div class="state-message error" id="errorState" style="display:none;"></div>
 
-  <!-- ─── MAIN ───────────────────────────────────────────────────────────── -->
   <main class="product-wrapper" id="productWrapper" style="display:none;">
 
     <div class="breadcrumb" id="breadcrumb"></div>
 
     <div class="product-grid">
 
-      <!-- ─── CỘT TRÁI: ẢNH + VIDEO (chung 1 gallery) ─────────────────────── -->
       <div class="gallery">
         <div class="main-image-box">
           <img id="mainImage" src="" alt="" style="display:none;">
@@ -49,7 +49,6 @@
         </div>
         <div class="thumbnails" id="thumbnails"></div>
 
-        <!-- MÔ TẢ (dưới ảnh, giống cột trái CellphoneS) -->
         <div class="tabs">
           <button class="tab-btn active" data-tab="mota">Mô tả</button>
           <button class="tab-btn" data-tab="danhgia">Đánh giá</button>
@@ -62,7 +61,6 @@
         </div>
       </div>
 
-      <!-- ─── CỘT PHẢI: THÔNG TIN ─────────────────────────────────────────── -->
       <div class="info">
         <h1 id="productName"></h1>
         <div class="rating-row">
@@ -70,7 +68,6 @@
           <span class="sku" id="productSku"></span>
         </div>
 
-        <!-- Giá -->
         <div class="price-box">
           <div class="price-row">
             <span class="final-price" id="finalPrice"></span>
@@ -79,10 +76,8 @@
           <span class="discount-badge" id="discountBadge" style="display:none;"></span>
         </div>
 
-        <!-- Tồn kho -->
         <div class="stock-info" id="stockInfo"></div>
 
-        <!-- Số lượng -->
         <div class="quantity-row">
           <span class="label">Số lượng</span>
           <div class="quantity-box">
@@ -92,18 +87,15 @@
           </div>
         </div>
 
-        <!-- COD -->
         <div class="cod-info" id="codInfo" style="display:none;">
           <i class="fas fa-money-bill-wave"></i> Hỗ trợ thanh toán khi nhận hàng (COD)
         </div>
 
-        <!-- CTA -->
         <div class="cta-row">
           <button class="btn-outline" id="btnAddCart"><i class="fas fa-cart-plus"></i> Thêm vào giỏ</button>
           <button class="btn-primary" id="btnBuyNow">Mua ngay</button>
         </div>
 
-        <!-- Box chi nhánh / vận chuyển -->
         <div class="branch-box">
           <i class="fas fa-store"></i>
           <div>
@@ -114,7 +106,6 @@
       </div>
     </div>
 
-    <!-- ─── SẢN PHẨM TƯƠNG TỰ ─────────────────────────────────────────────── -->
     <section class="related-section" id="relatedSection" style="display:none;">
       <h2>Có thể bạn cũng thích</h2>
       <div class="related-grid" id="relatedGrid"></div>

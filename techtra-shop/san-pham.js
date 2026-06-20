@@ -161,7 +161,12 @@ function renderProduct() {
 
   if (product.cod_enabled) $codInfo.style.display = "flex";
 
-  $descriptionContent.textContent = product.description || "Sản phẩm chưa có mô tả.";
+  // SUẨ DOAN này: Đổi từ .textContent sang .innerHTML để biên dịch mã HTML và ảnh của Word
+  if (product.description) {
+    $descriptionContent.innerHTML = product.description;
+  } else {
+    $descriptionContent.textContent = "Sản phẩm chưa có mô tả.";
+  }
 }
 
 function renderGallery(images, videoUrl) {

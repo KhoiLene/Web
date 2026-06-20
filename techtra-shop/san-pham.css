@@ -219,7 +219,7 @@ button { font-family: inherit; }
   background: #000;
 }
 
-/* Tabs (mô tả / đánh giá) */
+/* ─── TABS & DESCRIPTION (SỬA TRIỆT ĐỂ LỖI WORD) ────────────────────────── */
 .tabs {
   display: flex;
   gap: 4px;
@@ -244,13 +244,73 @@ button { font-family: inherit; }
   border-bottom-color: var(--primary);
 }
 .tab-content { padding: 18px 4px; }
-.description-content {
-  font-size: 14px;
-  line-height: 1.8;
-  color: #374151;
-  white-space: pre-line;
-}
 .empty-note { font-size: 13px; color: var(--gray); }
+
+/* Vùng chứa nội dung mô tả tổng thể */
+.description-content {
+  width: 100%;
+  font-size: 15px;
+  color: #374151;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Ép tất cả các thẻ con nằm trong khối mô tả phải reset cấu trúc */
+#descriptionContent p, 
+#descriptionContent div, 
+#descriptionContent span,
+#descriptionContent h1, 
+#descriptionContent h2, 
+#descriptionContent h3, 
+#descriptionContent h4, 
+#descriptionContent h5, 
+#descriptionContent h6 {
+  margin-top: 2px !important;       /* Ép khoảng trống phía trên cực nhỏ */
+  margin-bottom: 6px !important;    /* Khoảng cách dưới vừa đủ để phân tách dòng */
+  padding: 0 !important;            /* Xoá sạch padding rác bám theo từ Word */
+  line-height: 1.6 !important;      /* Cố định giãn dòng tiêu chuẩn */
+  height: auto !important;          /* Phá bỏ thuộc tính cố định chiều cao dòng rác */
+  min-height: unset !important;     /* Triệt tiêu độ cao tối thiểu của dòng trống */
+  display: inline-block;            /* Sửa lỗi nhảy dòng bừa bãi giữa tiêu đề số (1.1) và chữ */
+  width: auto !important;
+}
+
+/* Giữ phân đoạn chính theo cấu trúc khối của trang web, không làm vỡ bố cục ngang */
+#descriptionContent p,
+#descriptionContent div {
+  display: block !important;
+  width: 100% !important;
+}
+
+/* Triệt tiêu toàn bộ thuộc tính thụt đầu dòng (indent/margin-left) sai lệch của list Word */
+#descriptionContent [class*="Mso"], 
+#descriptionContent [style*="margin-left"] {
+  margin-left: 0 !important;
+  text-indent: 0 !important;
+}
+
+/* Ép text tự động bẻ hàng khi gặp chuỗi ký tự quá dài, tránh tràn khung */
+#descriptionContent p, 
+#descriptionContent span {
+  max-width: 100% !important;
+  word-break: break-word;
+}
+
+/* Ép tất cả hình ảnh hiển thị chuẩn, không tràn và tự căn giữa */
+#descriptionContent img {
+  max-width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  margin: 16px auto !important;
+  border-radius: 6px;
+}
+
+/* Ẩn hoàn toàn các thẻ p rỗng hoặc thẻ br thừa thãi tạo khoảng trống vô nghĩa */
+#descriptionContent p:empty,
+#descriptionContent br + br {
+  display: none !important;
+}
 
 /* ─── INFO COLUMN ────────────────────────────────────────────────────────── */
 .info h1 {
