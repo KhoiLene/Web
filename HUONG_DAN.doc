@@ -1,0 +1,322 @@
+# Hướng dẫn chi tiết: Hệ thống Techtra Shop + Admin (Docker + Ngrok)
+
+## Mục lục
+1. Tổng quan hệ thống
+2. Yêu cầu phần cứng & phần mềm
+3. Cấu trúc thư mục dự án
+4. Cài đặt một lần
+5. Tự động khởi động khi bật máy
+6. Truy cập hệ thống
+7. Quản lý dịch vụ (start/stop/logs)
+8. Bảo mật & lưu ý
+9. Tùy chọn nâng cao
+10. Các lệnh thường dùng
+
+---
+
+## 1. Tổng quan hệ thống
+
+- **Frontend**:
+  - `techtra-shop` – giao diện khách hàng (React/Vite, served by Nginx)
+  - `techtra-admin` – panel quản trị (React/Vite, served by Nginx)
+- **Backend**: API RESTful(Node.js/Express + PostgreSQL) cung cấp các endpoint:
+  - `/api/auth/*` – đăng ký, đăng nhập
+  - `/api/product-groups` – quản lý danh mục sản phẩm
+  - `/api/products` – quản lý sản phẩm
+  - `/health` – kiểm tra tình trạng server
+- **Cơ sở dữ liệu**: PostgreSQL 15 (schema trong `init-db.sql` đã có bảng `users`, `product_groups`, `products`)
+- **Proxy ngược**: Nginx (container `nginx-proxy`) route:
+  - `/admin/*` → `techtra-admin:80`
+  - `/api/*` → `techtra-backend:5000`
+  - còn lại → `techtra-shop:80`
+- **Tunnel công cộng**: Ngrok (miễn phí) expose cổng 80 của host ra Internet, cho phép truy cập từ bất kỳ thiết bị nào có kết nối Internet.
+
+---
+
+## 2. Yêu cầu phần cứng & phần mềm
+
+| Yêu cầu | Phiên bản đề cập |
+|---------|------------------|
+| Hệ điều hành | Windows 10/11 (64‑bit) |
+| Docker Desktop | ≥ 20.10 (có hỗ trợ WSL2 hoặc Hyper‑V) |
+| Node.js (để build local nếu cần) | ≥ 18 (dùng trong Dockerfile) |
+| Git (tùy chọn) | bất kỳ |
+| Kết nối Internet | Để tải images và chạy Ngrok |
+| Tài khoản Ngrok (miễn phí) | https://dashboard.ngrok.com/get-started/your-authtoken |
+
+---
+
+## 3. Cấu trúc thư mục dự án
+
+```
+D:\Web\
+│
+├─ backend/
+│   ├─ Dockerfile
+│   ├─ .env
+│   ├─ package.json
+│   └─ server.js          ← API (bao gồm auth)
+│
+├─ techtra-admin/
+│   ├─ Dockerfile.admin
+│   ├─ nginx.admin.conf
+│   └─ src/               ← mã nguồn React admin
+│
+├─ techtra-shop/
+│   ├─ Dockerfile.shop
+│   ├─ nginx.shop.conf
+│   ├─ src/               ← mã nguồn React shop
+│   ├─ DangNhap/          ← trang đăng nhập
+│   │    ├─ dangnhap.html
+│   │    ├─ dangnhap.css
+│   │    └─ dangnhap.js
+│   └─ DangKy/            ← trang đăng ký
+│        ├─ dangky.html
+│        ├─ dangky.css
+│        └─ dangky.js
+│
+├─ nginx/
+│   └─ nginx.conf         ← file cấu hình reverse proxy
+│
+├─ init-db.sql            ← schema + dữ liệu mẫu (bao gồm users)
+├─ docker-compose.yml     ← orchestrator
+└─ start-server.bat       ← script tự động khởi động + Ngrok
+```
+
+---
+
+## 4. Cài đặt một lần
+
+### 4.1 Cài Docker Desktop
+1. Tải từ https://www.docker.com/products/docker-desktop
+2. Cài đặt, sau khi cài xong mở Docker Desktop → Settings → General → ✔ **Start Docker Desktop when you log in** → Apply & Restart.
+
+### 4.2 Tải và cấu hình Ngrok
+1. Truy cập https://ngrok.com/download → tải phiên bản Windows (zip).
+2. Giải nén vào một folder, ví dụ `C:\ngrok`.
+3. Đăng ký tài khoản miễn phí tại https://dashboard.ngrok.com/get-started/your-authtoken và sao chép **Authtoken**.
+4. Mở **Command Prompt** (cmd) và chạy:
+   ```cmd
+   cd C:\ngrok
+   ngrok config add-authtoken <YOUR_AUTHTOKEN>
+   ```
+   (Chỉ cần làm một lần; token sẽ được lưu tại `%USERPROFILE%\.ngrok2\ngrok.yml`.)
+
+### 4.3 Kiểm tra mã nguồn và docker‑compose
+- Mở `D:\Web` trong File Explorer.
+- Đảm bảo các file sau tồn tại và không bị thay đổi nhầm:
+  - `docker-compose.yml`
+  - `backend/Dockerfile`
+  - `techtra-admin/Dockerfile.admin`
+  - `techtra-shop/Dockerfile.shop`
+  - `nginx/nginx.conf`
+  - `init-db.sql` (đã có bảng users)
+- (Tùy chọn) Nếu muốn chạy build local để kiểm tra lỗi, bạn có thể chạy:
+  ```cmd
+  cd D:\Web
+  docker-compose build
+  ```
+  Nhưng không bắt buộc vì script `start‑server.bat` sẽ tự động build khi cần.
+
+---
+
+## 5. Tự động khởi động khi bật máy
+
+### 5.1 Tạo file batch `start‑server.bat` (đã có trong `D:\Web`)
+
+```bat
+@echo off
+REM =============================================================
+REM  start-server.bat – Khởi động Docker‑Compose + ngrok tự động
+REM  Đặt trong D:\Web và tạo shortcut trong shell:startup
+REM =============================================================
+
+:: 1️⃣ Thay đổi thư mục làm việc về thư mục dự án
+cd /d D:\Web
+
+:: 2️⃣ Đợi Desktop Docker sẵn sàng (tùy chọn, 5 giây thường đủ)
+echo Waiting for Docker Desktop...
+timeout /t 5 >nul
+
+:: 3️⃣ Khởi động các container (detached)
+echo Starting Docker‑Compose services...
+docker-compose up -d
+
+:: 4️⃣ Kiểm tra nhanh xem có lỗi không (tùy chọn)
+docker-compose ps | findstr /i "Exit" >nul
+if not errorlevel 1 (
+    echo [WARNING] Một số container đã Exit. Kiểm tra logs bằng: docker-compose logs
+) else (
+    echo All services are up.
+)
+
+:: 5️⃣ Chạy ngrok trong một cửa sổ riêng để batch không bị block
+echo Starting ngrok tunnel on port 80...
+start "" "C:\ngrok\ngrok.exe" http 80
+REM =============================================================
+REM  Khi muốn dừng tunnel + containers, bạn có thể chạy:
+REM    docker-compose down
+REM    taskkill /IM ngrok.exe /F
+REM =============================================================
+```
+
+### 5.2 Tạo shortcut tự động chạy khi đăng nhập
+
+1. Nhấn **Win + R**, gõ `shell:startup`, rồi Enter.
+   → Mở folder `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup`.
+2. Chuột phải → **New → Shortcut**.
+3. Trong ô “Type the location of the item”, nhập: `D:\Web\start-server.bat`.
+4. Nhấn **Next**, đặt tên (ví dụ: `Start Techtra Server`), sau đó **Finish**.
+5. (Tùy chọn) Nhấn chuột phải shortcut → **Properties** → trong tab **Shortcut**, chọn **Run: Minimized** để cửa sổ cmd không chiếm màn hình khi khởi động.
+
+> Kết quả: Mỗi lần bạn đăng nhập vào Windows, Docker‑Compose sẽ khởi động tất cả container (db, backend, admin, shop, nginx‑proxy) và sau đó sẽ mở một cửa sổ Ngrok exposing cổng 80 ra Internet.
+
+### 5.3 Kiểm tra sau khi khởi động
+
+- Đợi khoảng 10‑15 giây để mọi service khởi động hoàn tất.
+- Cửa sổ Ngrok sẽ hiện ra, ví dụ:
+
+  ```
+  Session Status                online
+  Version                       3.x.x
+  Region                        United States (us)
+  Web Interface                 http://127.0.0.1:4040
+  Forwarding                    http://abcd1234.ngrok.io -> http://localhost:80
+  Forwarding                    https://abcd1234.ngrok.io -> http://localhost:80
+  ```
+
+- Sao chép một trong hai dòng “Forwarding” (thường là link http://…).
+
+---
+
+## 6. Truy cập hệ thống
+
+| Mục đích | URL (local) | URL (qua Ngrok) |
+|----------|-------------|-----------------|
+| Trang chủ shop | `http://localhost/` | `<NGROK_URL>/` |
+| Trang quản trị admin | `http://localhost/admin/` | `<NGROK_URL>/admin/` |
+| Trang đăng nhập | `http://localhost/DangNhap/dangnhap.html` | `<NGROK_URL>/DangNhap/dangnhap.html` |
+| Trang đăng ký | `http://localhost/DangKy/dangky.html` | `<NGROK_URL>/DangKy/dangky.html` |
+| Kiểm tra API (danh mục sản phẩm) | `http://localhost/api/product-groups` | `<NGROK_URL>/api/product-groups` |
+| Health check | `http://localhost/health` | `<NGROK_URL>/health` |
+
+- **Đăng nhập**:
+  - Mở trang đăng nhập, nhập tài khoản/email và mật khẩu.
+  - Tài khoản mẫu đã được seed trong `init-db.sql`:
+    - `admin` / `admin123` (role = admin)
+    - `user`  / `user123`  (role = user)
+  - Sau khi đăng nhập thành công:
+    - Nếu role = **admin** → chuyển tới `/admin/`.
+    - Nếu role = **user** → quay lại trang trước đó (hoặc trang chủ nếu không có referrer).
+
+- **Đăng ký**:
+  - Mở trang đăng ký, nhập họ tên (tùy chọn), tên đăng nhập, email, mật khẩu (≥6 ký tự) và xác nhận mật khẩu.
+  - Gửi request tới `/api/auth/register` (bcrypt hash mật khẩu).
+  - Khi thành công, hiển thị thông báo và tự chuyển tới trang đăng nhập sau 2 giây.
+
+> Lưu ý: URL Ngrok thay đổi mỗi lần bạn chạy lại `ngrok http 80` (trừ khi sử dụng *reserved domain* trong gói trả phí). Mỗi lần khởi động máy, hãy sao chép URL mới từ cửa sổ Ngrok.
+
+---
+
+## 7. Quản lý dịch vụ (start/stop/logs)
+
+| Hành động | Lệnh (mở CMD/PowerShell trong thư mục `D:\Web`) |
+|-----------|---------------------------------------------------|
+| Dừng tất cả container | `docker-compose down` |
+| Khởi động lại container (giữ volume) | `docker-compose up -d` |
+| Xem trạng thái container | `docker-compose ps` |
+| Xem log thực시간 của một service (ví dụ backend) | `docker-compose logs -f backend` |
+| Xem log tất cả services | `docker-compose logs -f` |
+| Dừng chỉ Ngrok (không tắt các container) | Đóng cửa sổ console Ngrok **hoặc** chạy `taskkill /IM ngrok.exe /F` |
+| Khởi động lại Ngrok (cổng 80) | `cd C:\ngrok && ngrok http 80` |
+| Rebuild một service (sau khi thay đổi code) | `docker-compose build <service-name>`<br>ví dụ: `docker-compose build backend` |
+| Áp dụng thay đổi mà không xóa volume | `docker-compose up -d --build <service-name>` |
+
+---
+
+## 8. Bảo mật & lưu ý quan trọng
+
+1. **Mật khẩu mẫu**
+   - Tài khoản admin/user trong `init-db.sql` chỉ dùng để thử nghiệm. Khi triển khai thực tế, hãy thay đổi mật khẩu ngay sau khi khởi động lần đầu (truy cập vào database và cập nhật bảng `users`).
+
+2. **Bcrypt đã được tích hợp**
+   - API `/api/auth/register` lưu mật khẩu dưới dạng hash bcrypt (saltRound = 10). API `/api/auth/login` sử dụng `bcrypt.compare` để xác thực.
+
+3. **Ngrok miễn phí**
+   - Mỗi tunnel miễn phí có thời gian sống tối đa **8 giờ** liên tục; sau đó kết nối sẽ ngắt và bạn chỉ cần khởi động lại lệnh `ngrok http 80`.
+   - URL công cộng (subdomain) sẽ thay đổi mỗi lần chạy (trừ khi bạn nâng cấp gói trả phí để dùng *reserved domain*).
+
+4. **Tường lửa Windows**
+   - Đảm bảo cổng **80** và **443** được cho phép trong *Windows Defender Firewall* (Inbound Rules) nếu bạn muốn truy cập trực tiếp qua IP mà không qua Ngrok. Khi dùng Ngrok, chỉ cần cho phép kết nối ra ngoài (outbound) – thường đã được mặc định.
+
+5. **HTTPS**
+   - Ngrok cung cấp cả http và https forwarding; kết nối từ trình duyệt tới edge của ngrok được mã hoá TLS. Lưu lượng từ edge của ngrok tới máy local của bạn vẫn là HTTP (do nginx lắng nghe trên cổng 80). Đối với môi trường demo này là đủ. Nếu muốn HTTPS end‑to‑end, bạn cần cấu hình SSL certificates trong `nginx.conf` và expose cổng 443.
+
+6. **Sao lưu dữ liệu**
+   - Volume `postgres_data` trong `docker-compose.yml` lưu trữ dữ liệu PostgreSQL. Nếu bạn xóa volume (`docker-compose down -v`) thì mọi dữ liệu (người dùng, sản phẩm…) sẽ mất. Hãy sao lưu volume định kỳ nếu cần giữ dữ liệu lâu dài.
+
+---
+
+## 9. Tùy chọn nâng cao (nếu bạn muốn mở rộng)
+
+| Tính năng | Cách thực hiện |
+|-----------|----------------|
+| **Reserved domain trên Ngrok** (giữ URL cố định) | Nâng cấp gói Ngrok (có gói trả phí). Trong file `ngrok.yml` đặt `subdomain: yourcustomname` và chạy `ngrok start --config ngrok.yml --all`. |
+| **SSL tự động với Let’s Encrypt** | Thay đổi `nginx.conf` để lắng nghe cổng 443, sử dụng certbot trong container nginx hoặc sử dụng `nginx-proxy` + `docker-compose-letsencrypt-nginx-proxy-companion`. |
+| **Quên mật khẩu / reset password** | Thêm endpoint `/api/auth/forgot-password` (gửi token qua email) và `/api/auth/reset-password`. Cần cấu hình SMTP (ví dụ: Gmail) trong `.env`. |
+| **Role‑based access control (RBAC) trên frontend** | Trong `techtra-admin/src` kiểm tra token JWT (lưu trong localStorage) và điều hướng hoặc ẩn/hiện các thành phần dựa trên `role`. |
+| **CI/CD tự động build image** | Sử dụng GitHub Actions để build Docker images và push tới Docker Hub khi có thay đổi trên `main`. |
+| **Monitoring** | Thêm container `prometheus` + `grafana` và cấu hình exporter cho backend (express-prometheus-middleware). |
+| **Backup tự động volume** | Tạo script chạy hàng ngày sao chép `postgres_data` ra một folder backup hoặc sử dụng công cụ như `velero` nếu dùng Kubernetes. |
+
+---
+
+## 10. Các lệnh thường dùng (tóm tắt)
+
+```cmd
+:: Khởi động toàn bộ stack (nếu chưa chạy)
+cd D:\Web
+docker-compose up -d
+
+:: Dừng toàn bộ stack
+docker-compose down
+
+:: Xem trạng thái container
+docker-compose ps
+
+:: Xem log backend (follow)
+docker-compose logs -f backend
+
+:: Rebuild backend sau khi thay đổi code
+docker-compose build backend
+docker-compose up -d backend
+
+:: Dừng chỉ Ngrok
+taskkill /IM ngrok.exe /F
+
+:: Khởi động lại Ngrok
+cd C:\ngrok
+ngrok http 80
+
+:: Kiểm tra API từ local
+curl -i http://localhost/api/product-groups
+
+:: Kiểm tra API từ máy khác (thay <URL>)
+curl -i http://<URL>/api/product-groups
+```
+
+---
+
+### Kết luận
+
+Bạn đã có một **hệ thống hoàn chỉnh** bao gồm:
+
+- **Frontend** (shop & admin) chạy trong các container Nginx.
+- **Backend** API Node.js/Express + PostgreSQL với chức năng đăng ký/đăng nhập (bcrypt).
+- **Tự động khởi động** khi bạn đăng nhập vào Windows (Docker‑Compose + Ngrok).
+- **Truy cập công cộng** từ bất kỳ thiết bị nào có Internet qua URL mà Ngrok cung cấp.
+- **Hướng dẫn chi tiết** để quản lý, bảo mật và mở rộng hệ thống.
+
+Nếu bạn gặp bất kỳ vấn đề nào (lỗi container, không truy cập được, hoặc muốn thêm chức năng mới), hãy tham khảo phần **Quản lý dịch vụ** và **Lưu ý bảo mật** ở trên, hoặc liên hệ để được hỗ trợ thêm.
+
+Chúc bạn sử dụng thành công hệ thống Techtra Shop & Admin! 🚀

@@ -1,7 +1,6 @@
 // src/api.js — Backend version (replacing Supabase)
 
 // ─────────────────────────────────────────────
-// Helper
 function handleResponse({ data, error }) {
   if (error) throw new Error(error);
   return {

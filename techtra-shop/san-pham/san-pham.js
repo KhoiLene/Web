@@ -1,4 +1,4 @@
-import { productsApi, productGroupsApi } from "./api.js";
+import { productsApi, productGroupsApi } from "../../api.js";
 
 // ─── Lấy slug từ URL ────────────────────────────────────────────────────────
 function getSlugFromUrl() {

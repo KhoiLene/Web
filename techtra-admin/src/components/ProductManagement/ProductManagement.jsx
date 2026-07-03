@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import "./ProductManagement.css";
 import CreateProduct from "./CreateProduct.jsx";
 import { productsApi, productGroupsApi } from "../../api";
@@ -23,22 +23,28 @@ export default function ProductManagement() {
 
   // ─── Fetch sản phẩm ────────────────────────────────────────────────────────
   const fetchProducts = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const params = { page, limit: LIMIT };
-      if (searchText)    params.search   = searchText;
-      if (selectedGroup) params.group_id = selectedGroup;
+  setLoading(true);
+  setError("");
 
-      const res = await productsApi.getAll(params);
-      setProducts(res.data  || []);
-      setTotal(res.total    || 0);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, searchText, selectedGroup]);
+  try {
+    const params = { page, limit: LIMIT };
+
+    if (searchText) params.search = searchText;
+    if (selectedGroup) params.group_id = Number(selectedGroup);
+
+    const res = await productsApi.getAll(params);
+
+    console.log("API response:", res);
+
+    setProducts(res.data?.items || res.data || []);
+    setTotal(res.data?.total || res.total || 0);
+
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+}, [page, searchText, selectedGroup]);
 
   // ─── Fetch nhóm (dropdown filter) ─────────────────────────────────────────
   const fetchGroups = useCallback(async () => {
@@ -48,8 +54,54 @@ export default function ProductManagement() {
     } catch {}
   }, []);
 
-  useEffect(() => { fetchProducts(); }, [fetchProducts]);
-  useEffect(() => { fetchGroups();   }, [fetchGroups]);
+  useEffect(() => {
+    let ignore = false;
+    const fetchProductsAsync = async () => {
+      try {
+        const res = await productsApi.getAll({
+          page,
+          limit: LIMIT,
+          ...(searchText && { search: searchText }),
+          ...(selectedGroup && { group_id: Number(selectedGroup) })
+        });
+
+        if (!ignore) {
+          setProducts(res.data?.items || res.data || []);
+          setTotal(res.data?.total || res.total || 0);
+        }
+      } catch (e) {
+        if (!ignore) setError(e.message);
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    };
+
+    fetchProductsAsync();
+
+    return () => {
+      ignore = true;
+    };
+  }, [fetchProducts]);
+
+  useEffect(() => {
+    let ignore = false;
+    const fetchGroupsAsync = async () => {
+      try {
+        const res = await productGroupsApi.getAll();
+        if (!ignore) {
+          setGroups(res.data || []);
+        }
+      } catch (e) {
+        if (!ignore) setError(e.message);
+      }
+    };
+
+    fetchGroupsAsync();
+
+    return () => {
+      ignore = true;
+    };
+  }, [fetchGroups]);
 
   // ─── Xóa 1 sản phẩm ───────────────────────────────────────────────────────
   const handleDelete = async (id, name) => {

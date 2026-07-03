@@ -1875,7 +1875,7 @@ export default function CreateProduct({ onBack, onSaved, initialData = null }) {
     return [...existing, ...Array(Math.max(0, SUB_COUNT - existing.length)).fill(null)];
   });
   const mainImageRef  = useRef(null);
-  const subImageRefs  = useRef(Array.from({ length: SUB_COUNT }, () => React.createRef()));
+  const subImageRefs  = useRef(Array.from({ length: SUB_COUNT }, () => null));
 
   // ─── Video & Tài liệu PDF (content_file) ────────────────────────────────────
   const [videoFile,      setVideoFile]      = useState(null);
@@ -1892,14 +1892,14 @@ export default function CreateProduct({ onBack, onSaved, initialData = null }) {
   const pdfRef = useRef(null);
 
   // Synchronize contentEditable content when initialData changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (editorRef.current && initialData?.description) {
       editorRef.current.innerHTML = initialData.description;
     }
   }, [initialData]);
 
   // ─── Tự tạo slug từ tên (khi chưa tự sửa tay) ──────────────────────────────
-  React.useEffect(() => {
+  useEffect(() => {
     if (!slugEdited) setSlug(toSlug(productName));
   }, [productName, slugEdited]);
 
@@ -2196,8 +2196,8 @@ export default function CreateProduct({ onBack, onSaved, initialData = null }) {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
               {subImages.map((img, idx) => (
                 <div key={idx}>
-                  <input type="file" accept="image/*" ref={subImageRefs.current[idx]} onChange={(e) => handleSubImageChange(idx, e)} style={{ display: "none" }} />
-                  <div onClick={() => !uploadingSubs[idx] && subImageRefs.current[idx].current.click()}
+                  <input type="file" accept="image/*" ref={(el) => { subImageRefs.current[idx] = el; }} onChange={(e) => handleSubImageChange(idx, e)} style={{ display: "none" }} />
+                  <div onClick={() => !uploadingSubs[idx] && subImageRefs.current[idx] && subImageRefs.current[idx].click()}
                     style={{ width: "70px", height: "70px", border: "1px solid #e5e7eb", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", cursor: uploadingSubs[idx] ? "wait" : "pointer", backgroundColor: "#f9fafb", position: "relative", overflow: "hidden" }}>
                     {img
                       ? <img src={img} alt={`Sub ${idx}`} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "6px", opacity: uploadingSubs[idx] ? 0.5 : 1 }} />

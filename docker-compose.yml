@@ -1,0 +1,69 @@
+version: "3.9"
+
+services:
+
+  # ─── PostgreSQL Database ─────────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: techtra-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: techtra
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "5432:5432"
+
+  # ─── Backend API ─────────────────────────────────────────────────────────────
+  backend:
+    build: ./backend
+    container_name: techtra-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - db
+    ports:
+      - "5000:5000"
+
+  # ─── Admin panel: techtra.vn/admin ────────────────────────────────────────
+  techtra-admin:
+    build:
+      context: ./techtra-admin
+      dockerfile: Dockerfile.admin
+    container_name: techtra-admin
+    restart: unless-stopped
+    expose:
+      - "80"
+
+  # ─── Shop: techtra.vn ─────────────────────────────────────────────────────
+  techtra-shop:
+    build:
+      context: ./techtra-shop
+      dockerfile: Dockerfile.shop
+    container_name: techtra-shop
+    restart: unless-stopped
+    expose:
+      - "80"
+
+  # ─── Nginx reverse proxy: gắn domain + route đúng ─────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro   # SSL cert (nếu có)
+    depends_on:
+      - techtra-admin
+      - techtra-shop
+      - backend
+
+volumes:
+  postgres_data:

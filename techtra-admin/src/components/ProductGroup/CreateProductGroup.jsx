@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { productGroupsApi } from "../../api";
 import { uploadImage } from "../../supabase";
 
@@ -27,7 +27,10 @@ export default function CreateProductGroup({ onBack, onSaved, initialData = null
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (!isEditing) setSlug(toSlug(groupName));
+    const shouldUpdateSlug = !isEditing;
+    if (shouldUpdateSlug) {
+      setSlug(toSlug(groupName));
+    }
   }, [groupName, isEditing]);
 
   // Upload lên Supabase Storage ngay khi chọn file

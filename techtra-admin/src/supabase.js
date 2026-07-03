@@ -1,24 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
+// This file is no longer used as we've migrated to the backend API
+// Keeping it for reference but all API calls now go through /api/* endpoints
+export const supabase = null;
 
-export const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,   // lấy từ Supabase → Settings → API
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
-
-// Upload ảnh lên Storage, trả về URL thật
+// Upload function is now handled by the backend
 export async function uploadImage(file, folder = "products") {
-  const ext      = file.name.split(".").pop();
-  const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-
-  const { error } = await supabase.storage
-    .from("product-images")
-    .upload(fileName, file, { upsert: true });
-
-  if (error) throw new Error("Upload ảnh thất bại: " + error.message);
-
-  const { data } = supabase.storage
-    .from("product-images")
-    .getPublicUrl(fileName);
-
-  return data.publicUrl; // ← URL thật, lưu vào database được
+  // This function is kept for compatibility but actual upload is handled by backend
+  throw new Error('Image upload functionality has been moved to the backend API');
 }

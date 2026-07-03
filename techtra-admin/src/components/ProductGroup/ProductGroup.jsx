@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import "./ProductGroup.css";
 import CreateProductGroup from "./CreateProductGroup.jsx";
 import { productGroupsApi } from "../../api";
@@ -15,20 +15,33 @@ export default function ProductGroup() {
   const [selected, setSelected]   = useState([]); // id các hàng được tick
 
   // ─── Fetch danh sách nhóm từ API ─────────────────────────────────────────────
-  const fetchGroups = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await productGroupsApi.getAll();
-      setGroups(res.data || []);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  useEffect(() => {
+    let ignore = false;
+    const fetchGroups = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await productGroupsApi.getAll();
+        if (!ignore) {
+          setGroups(res.data || []);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError(err.message);
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    };
 
-  useEffect(() => { fetchGroups(); }, [fetchGroups]);
+    fetchGroups();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   // ─── Xóa nhóm ────────────────────────────────────────────────────────────────
   const handleDelete = async (id, name) => {
