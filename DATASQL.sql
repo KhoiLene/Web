@@ -8,10 +8,16 @@ CREATE TABLE IF NOT EXISTS product_groups (
   image_url      TEXT,
   condition_type VARCHAR(20)  DEFAULT 'manual', -- 'manual' | 'automatic'
   is_active      BOOLEAN      DEFAULT TRUE,
+  is_sale        BOOLEAN      DEFAULT FALSE,    -- TRUE: hiện ở menu SALE; FALSE: hiện ở menu SẢN PHẨM
   sort_order     INTEGER      DEFAULT 0,
   created_at     TIMESTAMP    DEFAULT NOW(),
   updated_at     TIMESTAMP    DEFAULT NOW()
 );
+
+-- Migration: nếu bảng đã tồn tại trước đó, thêm cột is_sale
+ALTER TABLE product_groups
+  ADD COLUMN IF NOT EXISTS is_sale BOOLEAN DEFAULT FALSE;
+COMMENT ON COLUMN product_groups.is_sale IS 'TRUE: thuộc menu SALE; FALSE: thuộc menu SẢN PHẨM';
 
 
 -- ─── 2. SẢN PHẨM (all-products) ─────────────────────────────

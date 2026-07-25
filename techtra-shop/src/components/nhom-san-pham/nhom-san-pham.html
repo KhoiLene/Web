@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nhóm sản phẩm | Techtra</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="../../components/nhom-san-pham/nhom-san-pham.css">
+
+  <script type="importmap">
+  {
+    "imports": {
+      "../../components/api-service/api.js": "../../components/api-service/api.js"
+    }
+  }
+  </script>
+</head>
+<body>
+
+  <div id="header-placeholder"></div>
+
+  <div class="state-message" id="loadingState">⌛ Đang tải nhóm sản phẩm...</div>
+  <div class="state-message error" id="errorState" style="display:none;"></div>
+
+  <main class="group-wrapper" id="groupWrapper" style="display:none;">
+    <nav class="breadcrumb" id="breadcrumb"></nav>
+
+    <header class="group-header">
+      <div class="group-header-text">
+        <h1 id="groupName">Nhóm sản phẩm</h1>
+        <p id="groupDesc"></p>
+        <div class="group-meta">
+          <span><i class="fas fa-cube"></i> <span id="groupCount">0</span> sản phẩm</span>
+        </div>
+      </div>
+      <div class="group-header-img" id="groupImg"></div>
+    </header>
+
+    <div class="group-toolbar">
+      <div class="group-toolbar-left">
+        <div class="search-inline">
+          <i class="fas fa-search"></i>
+          <input type="text" id="searchInput" placeholder="Tìm trong nhóm này...">
+        </div>
+        <label class="sort-inline">Sắp xếp:
+          <select id="sortSelect">
+            <option value="newest">Mới nhất</option>
+            <option value="price_asc">Giá tăng dần</option>
+            <option value="price_desc">Giá giảm dần</option>
+            <option value="name">Tên A-Z</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div class="products-grid" id="productsGrid"></div>
+
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <i class="fas fa-box-open"></i>
+      <p>Nhóm này chưa có sản phẩm nào.</p>
+    </div>
+  </main>
+
+  <div id="footer-placeholder"></div>
+
+  <script src="../../components/tin-tuc/partials.js?v=2"></script>
+  <script type="module" src="../../components/nhom-san-pham/nhom-san-pham.js?v=2"></script>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Đang tải sản phẩm... | Techtra</title>
+  <link rel="stylesheet" href="/components/san-pham/san-pham.css">
+  <link rel="stylesheet" href="/components/san-pham/review.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  <script type="importmap">
+  {
+    "imports": {
+      "/components/api-service/api.js": "/components/api-service/api.js"
+    }
+  }
+  </script>
+</head>
+<body>
+
+  <!-- HEADER (load từ Header/header.html) -->
+  <div id="header-placeholder"></div>
+
+  <div class="state-message" id="loadingState">⌛ Đang tải sản phẩm...</div>
+  <div class="state-message error" id="errorState" style="display:none;"></div>
+
+  <main class="product-wrapper" id="productWrapper" style="display:none;">
+
+    <div class="breadcrumb" id="breadcrumb"></div>
+
+    <div class="product-grid">
+
+      <div class="gallery">
+        <div class="main-image-box">
+          <img id="mainImage" src="" alt="" style="display:none;">
+          <video id="mainVideo" controls style="display:none;"></video>
+          <button class="gallery-arrow gallery-arrow-left" id="galleryPrev">‹</button>
+          <button class="gallery-arrow gallery-arrow-right" id="galleryNext">›</button>
+        </div>
+        <div class="thumbnails" id="thumbnails"></div>
+
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="mota">Mô tả</button>
+          <button class="tab-btn" data-tab="danhgia">Đánh giá</button>
+        </div>
+        <div class="tab-content" id="tabMota">
+          <div class="mota-layout">
+            <div class="description-box">
+              <div class="description-content" id="descriptionContent">Sản phẩm chưa có mô tả.</div>
+            </div>
+            <button id="toggleDescriptionButton" class="toggle-description-btn" type="button">Xem thêm</button>
+          </div>
+        </div>
+        <div class="tab-content" id="tabDanhgia" style="display:none;">
+          <div class="review-summary" id="reviewSummary"></div>
+
+          <!--
+            Form đánh giá chỉ hiển thị khi người dùng bấm nút "Viết đánh giá".
+            Mặc định ẩn để tránh lộ giao diện "5 sao / ô nhập" khi sản phẩm
+            chưa có đánh giá nào.
+          -->
+          <div id="reviewFormWrapper" style="display:none;">
+            <button class="btn-outline" id="toggleReviewForm" type="button"
+              style="margin: 4px 0 14px;">
+              <i class="fas fa-pen"></i> Viết đánh giá của bạn
+            </button>
+            <div class="review-form" id="reviewForm" style="display:none;">
+              <h3>Đánh giá của bạn</h3>
+              <div class="form-row">
+                <label for="reviewRating">Điểm của bạn</label>
+                <select id="reviewRating">
+                  <option value="5">5 - Tuyệt vời</option>
+                  <option value="4">4 - Rất tốt</option>
+                  <option value="3">3 - Trung bình</option>
+                  <option value="2">2 - Cần cải thiện</option>
+                  <option value="1">1 - Không hài lòng</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label for="reviewText">Bình luận</label>
+                <textarea id="reviewText" rows="4" placeholder="Chia sẻ cảm nhận của bạn về sản phẩm..."></textarea>
+              </div>
+              <button class="btn-primary" id="submitReview">Gửi đánh giá</button>
+            </div>
+          </div>
+
+          <div class="review-list" id="reviewList">
+            <p class="empty-note">Chưa có đánh giá nào cho sản phẩm này.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="info">
+        <h1 id="productName"></h1>
+        <div class="rating-row">
+          <span class="stars">★★★★★</span>
+          <span class="sku" id="productSku"></span>
+        </div>
+
+        <div class="price-box">
+          <div class="price-row">
+            <span class="final-price" id="finalPrice"></span>
+            <span class="old-price" id="oldPrice" style="display:none;"></span>
+          </div>
+          <span class="discount-badge" id="discountBadge" style="display:none;"></span>
+        </div>
+
+        <div class="stock-info" id="stockInfo"></div>
+
+        <div class="quantity-row">
+          <span class="label">Số lượng</span>
+          <div class="quantity-box">
+            <button id="qtyMinus">−</button>
+            <span id="qtyValue">1</span>
+            <button id="qtyPlus">+</button>
+          </div>
+        </div>
+
+        <div class="cod-info" id="codInfo" style="display:none;">
+          <i class="fas fa-money-bill-wave"></i> Hỗ trợ thanh toán khi nhận hàng (COD)
+        </div>
+
+        <div class="cta-row">
+          <button class="btn-outline" id="btnAddCart"><i class="fas fa-cart-plus"></i> Thêm vào giỏ</button>
+          <button class="btn-primary" id="btnBuyNow">Mua ngay</button>
+        </div>
+
+        <div class="branch-box">
+          <i class="fas fa-store"></i>
+          <div>
+            <strong>Giao hàng toàn quốc</strong>
+            <p>Miễn phí vận chuyển cho đơn từ 500.000đ</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside id="relatedSection" class="related-aside below-shipping">
+      <div class="related-heading-row">
+        <h2>Có thể bạn cũng thích</h2>
+        <div class="related-controls">
+          <button id="relatedPrev" class="related-nav-btn">‹</button>
+          <button id="relatedNext" class="related-nav-btn">›</button>
+        </div>
+      </div>
+      <div class="related-slider" id="relatedGrid"></div>
+    </aside>
+
+  </main>
+
+  <!-- FOOTER (load từ Footer/footer.html) -->
+  <div id="footer-placeholder"></div>
+
+  <!-- Load header/footer partials (chạy trước san-pham.js để DOM sẵn sàng) -->
+  <script src="/components/tin-tuc/partials.js?v=3"></script>
+  <script type="module" src="/components/san-pham/san-pham.js?v=3"></script>
+</body>
+</html>

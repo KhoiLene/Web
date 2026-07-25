@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Chuyển hướng — Techtra</title>
+    <meta name="robots" content="noindex">
+    <script>
+      (function(){
+        try {
+          const params = new URLSearchParams(location.search);
+          let slug = params.get('slug');
+          if (!slug) {
+            const m = location.pathname.match(/\/nhom-san-pham\/san-pham\/(?:index\.html\/)?([^\/]+)\/?$/i);
+            if (m) slug = decodeURIComponent(m[1]);
+          }
+          const targetBase = '/components/san-pham/san-pham.html';
+          const target = slug ? targetBase + '?slug=' + encodeURIComponent(slug) : targetBase + location.search + location.hash;
+          location.replace(target);
+        } catch (e) {
+          // Fallback: go to canonical page
+          location.replace('/components/san-pham/san-pham.html');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <p>Đang chuyển hướng tới trang sản phẩm...</p>
+  </body>
+</html>

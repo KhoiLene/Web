@@ -1,0 +1,61 @@
+:root{
+  --bg:#0b1220;
+  --card:#0f1a2f;
+  --muted:#8ea0c2;
+  --text:#eaf2ff;
+  --primary:#6a11cb;
+  --primary2:#2575fc;
+  --border:rgba(255,255,255,.10);
+}
+body{background:linear-gradient(180deg,#0b1220,#070b14);color:var(--text);font-family:"Be Vietnam Pro",system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0}
+.container{width:min(1100px,92vw);margin:0 auto}
+.btn{border:1px solid var(--border);background:transparent;color:var(--text);padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600}
+.btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary2));border:0}
+.btn-secondary{background:rgba(255,255,255,.06)}
+.btn-ghost{background:transparent}
+.cart-page{padding:26px 0 40px}
+.cart-header h1{margin:0;font-size:28px}
+.cart-subtitle{margin:6px 0 18px;color:var(--muted)}
+.cart-layout{display:grid;grid-template-columns:1.6fr 1fr;gap:18px}
+.cart-table{border:1px solid var(--border);border-radius:18px;overflow:hidden;background:rgba(255,255,255,.03)}
+.cart-row{display:grid;gap:10px;padding:14px 14px;align-items:center}
+.cart-row--head{background:rgba(255,255,255,.04);color:var(--muted);font-size:13px}
+.col-product{grid-column:1 / span 1}
+.col-price{grid-column:2}
+.col-qty{grid-column:3}
+.col-total{grid-column:4}
+.col-action{grid-column:5}
+.cart-rows .cart-row{border-top:1px solid rgba(255,255,255,.07)}
+.item-product{display:flex;gap:12px;align-items:center}
+.item-product img{width:56px;height:56px;object-fit:cover;border-radius:12px;border:1px solid var(--border)}
+.item-meta{display:flex;flex-direction:column;gap:4px}
+.item-meta a{color:var(--text);text-decoration:none;font-weight:700}
+.item-meta small{color:var(--muted)}
+.qty-control{display:flex;align-items:center;gap:10px}
+.qty-control button{width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text);cursor:pointer}
+.qty-control .qty{min-width:22px;text-align:center;font-weight:800}
+.item-total strong{font-size:16px}
+.cart-summary .summary-card{border:1px solid var(--border);border-radius:18px;background:rgba(255,255,255,.03);padding:16px}
+.summary-title{margin:0 0 10px}
+.summary-line{display:flex;justify-content:space-between;color:var(--muted);padding:8px 0}
+.summary-line--discount{border-bottom:1px dashed rgba(255,255,255,.12)}
+.summary-total{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+.summary-total span{color:var(--muted)}
+.summary-total strong{font-size:18px}
+.voucher-block{margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08)}
+.voucher-block label{display:block;color:var(--muted);font-weight:700;margin-bottom:8px}
+.voucher-input{display:flex;gap:10px}
+.voucher-input input{flex:1;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text)}
+.voucher-message{margin-top:8px;color:var(--muted);font-size:13px;min-height:18px}
+.summary-actions{display:flex;gap:10px;margin-top:14px}
+.summary-actions .btn{flex:1}
+.summary-note{margin-top:14px;display:flex;gap:10px;align-items:center;color:var(--muted);font-size:13px}
+.empty-icon{font-size:40px;margin-bottom:10px;opacity:.9}
+.cart-empty{border:1px dashed rgba(255,255,255,.14);border-radius:18px;background:rgba(255,255,255,.02);padding:26px;text-align:center}
+.history-card{border:1px solid var(--border);border-radius:18px;background:rgba(255,255,255,.03);padding:16px;margin-top:18px}
+.history-card h3{margin:0 0 10px}
+.history-list{display:flex;flex-direction:column;gap:10px}
+.history-item{border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px;background:rgba(255,255,255,.02)}
+.history-item strong{display:block}
+.history-item span{color:var(--muted);font-size:13px}
+@media (max-width:900px){.cart-layout{grid-template-columns:1fr}.col-price,.col-qty,.col-total,.col-action{display:none}}

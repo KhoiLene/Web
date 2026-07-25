@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
 const emailService = require('./services/email.js');
@@ -136,7 +136,7 @@ app.post('/api/auth/verify-code', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid type. Must be "email" or "zalo"' });
     }
     if (!record) {
-      return res.status(40.status(400).json({ success: false, error: 'Verification code not found or expired' });
+      return res.status(400).json({ success: false, error: 'Verification code not found or expired' });
     }
     const now = Date.now();
     if (now > record.expiresAt) {
@@ -445,9 +445,120 @@ app.delete('/api/products/:id', async (req, res) => {
   }
 });
 
+// ========== PRODUCT REVIEWS API ==========
+// Lấy danh sách đánh giá (mới nhất trước) + tổng hợp rating
+app.get('/api/products/:id/reviews', async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    if (Number.isNaN(productId)) {
+      return res.status(400).json({ success: false, error: 'Invalid product id' });
+    }
+    const reviews = await pool.query(
+      `SELECT id, product_id, rating, comment, reviewer_name, created_at
+       FROM product_reviews
+       WHERE product_id = $1 AND is_approved = true
+       ORDER BY created_at DESC
+       LIMIT 100`,
+      [productId]
+    );
+    const summary = await pool.query(
+      `SELECT count(*)::int as review_count, avg(rating)::numeric(3,2) as avg_rating
+       FROM product_reviews
+       WHERE product_id = $1 AND is_approved = true`,
+      [productId]
+    );
+    const cnt = summary.rows[0].review_count || 0;
+    const avg = cnt > 0 ? Number(summary.rows[0].avg_rating) : 0;
+    res.json({
+      success: true,
+      data: reviews.rows,
+      summary: { review_count: cnt, avg_rating: avg },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Khách gửi đánh giá mới
+app.post('/api/products/:id/reviews', async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    const { rating, comment, reviewer_name } = req.body || {};
+    const r = parseInt(rating);
+    if (Number.isNaN(productId)) {
+      return res.status(400).json({ success: false, error: 'Invalid product id' });
+    }
+    if (Number.isNaN(r) || r < 1 || r > 5) {
+      return res.status(400).json({ success: false, error: 'Rating phải từ 1 đến 5' });
+    }
+    // Đảm bảo sản phẩm tồn tại
+    const exists = await pool.query('SELECT id FROM products WHERE id = $1', [productId]);
+    if (exists.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+    const result = await pool.query(
+      `INSERT INTO product_reviews (product_id, rating, comment, reviewer_name, is_approved, created_at)
+       VALUES ($1, $2, $3, $4, true, CURRENT_TIMESTAMP)
+       RETURNING id, product_id, rating, comment, reviewer_name, created_at`,
+      [productId, r, (comment || '').toString().trim() || null,
+       (reviewer_name || '').toString().trim() || 'Khách hàng']
+    );
+    // Đồng bộ rating + reviews trong bảng products (giúp hiển thị danh sách SP)
+    await pool.query(
+      `UPDATE products
+         SET reviews = (SELECT count(*) FROM product_reviews WHERE product_id = $1 AND is_approved = true),
+             rating  = COALESCE((SELECT round(avg(rating)::numeric, 2) FROM product_reviews
+                                 WHERE product_id = $1 AND is_approved = true), rating)
+       WHERE id = $1`,
+      [productId]
+    );
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// =============================================================
+// Trang đọc báo — scrape link báo tự động (Mozilla Readability)
+// =============================================================
+const scraper = require('./services/scraper');
+
+// POST /api/news/scrape  { url: "https://..." } → { success, data: { title, content, excerpt, ... } }
+app.post('/api/news/scrape', async (req, res) => {
+  const { url } = req.body || {};
+  if (!url) return res.status(400).json({ success: false, error: 'Thiếu url' });
+
+  try {
+    const data = await scraper.scrapeArticle(url);
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('[scrape] Lỗi:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/news/scrape-batch  { urls: ["...", "..."] } → [{ success, data|error }, ...]
+app.post('/api/news/scrape-batch', async (req, res) => {
+  const { urls } = req.body || {};
+  if (!Array.isArray(urls) || !urls.length) {
+    return res.status(400).json({ success: false, error: 'Thiếu mảng urls' });
+  }
+  const results = await Promise.allSettled(
+    urls.map((u) => scraper.scrapeArticle(u))
+  );
+  res.json({
+    success: true,
+    results: results.map((r, i) =>
+      r.status === 'fulfilled'
+        ? { url: urls[i], success: true, data: r.value }
+        : { url: urls[i], success: false, error: r.reason?.message || 'Lỗi không xác định' }
+    ),
+  });
 });
 
 app.listen(port, () => {
@@ -455,3 +566,4 @@ app.listen(port, () => {
 });
 
 module.exports = app;
+

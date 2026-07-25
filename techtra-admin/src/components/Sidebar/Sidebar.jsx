@@ -47,9 +47,28 @@ const NAV_ITEMS = [
 ];
 
 const CONTENT_ITEMS = [
-  { id: "dangbai",   label: "Đăng bài",          icon: "fas fa-pencil-alt", pageId: "post-content" },
+  { id: "dangbai",   
+    label: "Đăng bài",          
+    icon: "fas fa-pencil-alt", 
+    children: [
+      { label: "Nhóm bài viết",  pageId: "upload-group" },
+      { label: "Bài viết",    pageId: "upload" },
+      { label: "Videos",    pageId: "videos" },
+    ],
+  },
+  {
+    id: "baiviet",
+    label: "Bài viết / Đọc báo",
+    icon: "fas fa-newspaper",
+    children: [
+      { label: "Danh sách bài viết",  pageId: "news" },
+      { label: "Danh mục tin tức",    pageId: "news-categories" },
+    ],
+  },
   { id: "trangchu",  label: "Quản lý trang chủ", icon: "fas fa-home",       pageId: "manage-home" },
 ];
+
+
 
 // ─── NavItem ──────────────────────────────────────────────────────────────────
 function NavItem({ item, activeId, openId, onToggle, onActivate }) {
@@ -146,6 +165,7 @@ export default function Sidebar({ currentActivePage, onPageChange }) {
       });
     };
     findAndOpenParent(NAV_ITEMS);
+    findAndOpenParent(CONTENT_ITEMS);
   }, [currentActivePage]);
 
   const toggle = (id) => setOpenId((prev) => (prev === id ? null : id));

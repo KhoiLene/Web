@@ -1,0 +1,39 @@
+:root{
+  --bg:#0b1220;--card:#0f1a2f;--muted:#8ea0c2;--text:#eaf2ff;--primary:#6a11cb;--primary2:#2575fc;--border:rgba(255,255,255,.10)
+}
+body{background:linear-gradient(180deg,#0b1220,#070b14);color:var(--text);font-family:"Be Vietnam Pro",system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0}
+.container{width:min(1100px,92vw);margin:0 auto}
+.btn{border:1px solid var(--border);background:transparent;color:var(--text);padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:700}
+.btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary2));border:0}
+.muted{color:var(--muted)}
+.customer-page{padding:26px 0 40px}
+.customer-header h1{margin:0;font-size:28px}
+.customer-subtitle{margin:6px 0 18px;color:var(--muted)}
+.customer-layout{display:grid;grid-template-columns:1fr 1.2fr;gap:18px}
+.panel{border:1px solid var(--border);border-radius:18px;background:rgba(255,255,255,.03);padding:16px}
+.panel--stack{margin-bottom:18px}
+.panel-title{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.panel-title h2{margin:0;font-size:18px}
+.account-actions{display:flex;justify-content:flex-end;margin-bottom:12px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:flex;flex-direction:column;gap:8px}
+.field--full{grid-column:1 / -1}
+label{color:var(--muted);font-weight:700;font-size:13px}
+input{padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text)}
+.form-actions{grid-column:1 / -1;margin-top:6px}
+.form-message{grid-column:1 / -1;color:var(--muted);min-height:18px}
+.history-list{display:flex;flex-direction:column;gap:10px}
+.history-item{border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px;background:rgba(255,255,255,.02)}
+.history-item strong{display:block}
+.history-item span{color:var(--muted);font-size:13px}
+.loyalty-summary{display:grid;grid-template-columns:1fr;gap:10px;padding:10px 0 2px}
+.loyalty-row{display:flex;justify-content:space-between;gap:12px}
+.loyalty-row span{color:var(--muted)}
+.loyalty-row strong{font-size:16px}
+.voucher-block h3{margin:8px 0 12px;font-size:16px}
+.voucher-list{display:flex;flex-direction:column;gap:10px}
+.voucher-item{border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px;background:rgba(255,255,255,.02)}
+.voucher-item strong{display:block}
+.voucher-item span{color:var(--muted);font-size:13px}
+.login-cta{display:flex;gap:12px;align-items:center;border:1px dashed rgba(255,255,255,.16);border-radius:18px;padding:16px;margin-top:18px;background:rgba(255,255,255,.02)}
+@media (max-width:900px){.customer-layout{grid-template-columns:1fr}}
