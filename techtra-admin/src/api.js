@@ -860,7 +860,7 @@ export const ordersApi = {
   async getItems(orderId) {
     const r = await request(
       "GET",
-      `/db/order_items?order_id=eq.${orderId}&select=id,product_id,product_name,product_sku,image_url,quantity,unit_price,discount,subtotal&order=id.asc`
+      `/db/order_items?order_id=eq.${orderId}&select=id,product_id,product_name,product_sku,image_url,quantity,unit_price,discount,subtotal,weight_grams&order=id.asc`
     );
     return r.data || [];
   },

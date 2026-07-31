@@ -882,6 +882,10 @@ import { request } from "../api-service/api.js";
       image: item.image,
       price: Number(item.price || 0),
       quantity: Number(item.quantity || 1),
+      // Trọng lượng sản phẩm (gram) để lưu vào order_items phục vụ J&T và tồn kho vận chuyển
+      weight: Number(item.weight || 0) || 0,
+      weight_unit: item.weight_unit || "g",
+      weight_grams: Number(item.weight_grams || 0) || 0,
     };
   }
 
@@ -1562,14 +1566,22 @@ import { request } from "../api-service/api.js";
       if (!orderId) throw new Error("Không lấy được id đơn hàng.");
 
       // Create order items
-      const itemsPayload = cart.map((it) => ({
-        order_id: orderId,
-        product_id: it.id,
-        product_name: it.name,
-        unit_price: it.price,
-        quantity: it.quantity,
-        line_total: it.price * it.quantity,
-      }));
+      // Lấy trọng lượng (gram) từ product snapshot; nếu thiếu thì backend sẽ tự bổ sung.
+      const itemsPayload = cart.map((it) => {
+        let grams = it.weight_grams || 0;
+        if (!grams && it.weight) {
+          grams = (it.weight_unit || "g").toLowerCase() === "kg" ? it.weight * 1000 : it.weight;
+        }
+        return {
+          order_id: orderId,
+          product_id: it.id,
+          product_name: it.name,
+          unit_price: it.price,
+          quantity: it.quantity,
+          line_total: it.price * it.quantity,
+          weight_grams: grams,
+        };
+      });
 
       // Generic POST chỉ insert 1 row — loop từng item
       for (const row of itemsPayload) {

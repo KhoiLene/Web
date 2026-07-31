@@ -350,10 +350,12 @@ function JTPanel({ order, onUpdate }) {
             </div>
           )}
 
-          {order.jt_weight_grams && (
+          {(order.jt_weight_kg != null || order.weight_kg != null) && (
             <div className="dh-jt-row">
               <span className="dh-jt-label">Trọng lượng:</span>
-              <span className="dh-jt-value">{order.jt_weight_grams}g</span>
+              <span className="dh-jt-value">
+                {Number(order.jt_weight_kg || order.weight_kg || 0).toLocaleString("vi-VN")} kg
+              </span>
             </div>
           )}
 

@@ -246,7 +246,9 @@ create table if not exists orders (
   status          varchar(30)  default 'pending',     -- 'pending'|'confirmed'|'shipping'|'done'|'cancelled'
   note            text,
   created_at      timestamp    default now(),
-  updated_at      timestamp    default now()
+  updated_at      timestamp    default now(),
+  -- Cờ đánh dấu đã trừ tồn kho khi đơn chuyển confirmed
+  status_was_deducted boolean default false
 );
 
 create table if not exists order_items (
@@ -259,7 +261,10 @@ create table if not exists order_items (
   quantity     integer       not null default 1,
   unit_price   numeric(12,2) not null,
   discount     numeric(5,2)  default 0,
-  subtotal     numeric(12,2) not null
+  subtotal     numeric(12,2) not null,
+  line_total   numeric(12,2) default 0,               -- FE thanh-toan.js gửi
+  -- Trọng lượng từng dòng sản phẩm (gram), snapshot từ products.weight tại thởi điểm đặt hàng
+  weight_grams numeric(10,2) default 0
 );
 
 
@@ -2111,7 +2116,8 @@ alter table orders
   add column if not exists jt_status         varchar(50),
   add column if not exists jt_last_trace     jsonb,
   add column if not exists jt_created_at     timestamp,
-  add column if not exists jt_cancel_reason  text;
+  add column if not exists jt_cancel_reason  text,
+  add column if not exists status_was_deducted boolean default false;  -- cờ trừ tồn kho khi xác nhận đơn
 
 -- Index để tra cứu nhanh theo billCode / txlogisticid
 create index if not exists idx_orders_jt_bill on orders(jt_bill_code);
@@ -2125,6 +2131,7 @@ comment on column orders.jt_status        is 'Trạng thái vận đơn: created
 comment on column orders.jt_tracking_url  is 'URL tra cứu công khai từ J&T';
 comment on column orders.jt_weight_kg     is 'Trọng lượng gửi J&T, đơn vị KG (API J&T VN nhận kg, không phải gram)';
 comment on column orders.jt_last_trace    is 'Lần trace cuối (jsonb) — lưu response từ jtTraceOrder';
+comment on column orders.status_was_deducted is 'Đã trừ tồn kho khi đơn chuyển confirmed (tránh trừ lặp)';
 
 
 -- =============================================================
@@ -2132,20 +2139,37 @@ comment on column orders.jt_last_trace    is 'Lần trace cuối (jsonb) — lư
 --     jt_waybill_no / jt_weight_grams / jt_service_code / jt_pickup_id)
 --     Bỏ qua bước này nếu bạn chạy migration lần đầu.
 -- =============================================================
-do $$
+do $
 begin
-  if exists (select 1 from information_schema.columns
-             where table_name = 'orders' and column_name = 'jt_weight_grams') then
-    update orders set jt_weight_kg = jt_weight_grams / 1000.0
-      where jt_weight_grams is not null and jt_weight_kg is null;
+  -- Bổ sung cột trọng lượng / line_total nếu bảng order_items chưa có
+  if not exists (select 1 from information_schema.columns
+                 where table_name = 'order_items' and column_name = 'weight_grams') then
+    alter table order_items add column weight_grams numeric(10,2) default 0;
+  end if;
+  if not exists (select 1 from information_schema.columns
+                 where table_name = 'order_items' and column_name = 'line_total') then
+    alter table order_items add column line_total numeric(12,2) default 0;
+  end if;
+  if not exists (select 1 from information_schema.columns
+                 where table_name = 'orders' and column_name = 'status_was_deducted') then
+    alter table orders add column status_was_deducted boolean default false;
   end if;
 
-  if exists (select 1 from information_schema.columns
-             where table_name = 'orders' and column_name = 'jt_waybill_no') then
-    update orders set jt_txlogisticid = jt_waybill_no
-      where jt_waybill_no is not null and jt_txlogisticid is null;
-  end if;
-end $$;
+  -- Backfill weight_grams từ products.weight (nếu đơn vị là g) hoặc *1000 nếu là kg
+  -- Ưu tiên: weight_unit = 'g' → giữ nguyên, 'kg' → *1000, còn lại mặc định *1000
+  update order_items oi
+  set weight_grams = COALESCE(
+    CASE
+      WHEN p.weight_unit = 'g'  THEN p.weight
+      WHEN p.weight_unit = 'kg' THEN p.weight * 1000
+      WHEN p.weight IS NOT NULL AND p.weight > 0 THEN p.weight * 1000
+      ELSE 0
+    END, 0
+  )
+  from products p
+  where oi.product_id = p.id
+    AND (oi.weight_grams IS NULL OR oi.weight_grams = 0);
+end $;
 
 -- Sau khi xác nhận dữ liệu đã migrate đúng, có thể chạy riêng (KHÔNG tự động ở đây):
 -- alter table orders drop column if exists jt_waybill_no;
@@ -2233,13 +2257,26 @@ alter table order_items
 alter table order_items
   alter column subtotal set default 0;
 
--- Đồng thời backfill giá trị subtotal cho các order_items hiện có dựa trên unit_price * quantity
--- (idempotent: chỉ cập nhật row có subtotal = 0 và đã có unit_price + quantity).
-update order_items
-   set subtotal = unit_price * quantity
- where coalesce(subtotal, 0) = 0
-   and unit_price is not null
-   and quantity is not null;
+-- Bổ sung cột trọng lượng / cờ trừ kho nếu chưa có (không xoá dữ liệu cũ)
+alter table order_items
+  add column if not exists weight_grams numeric(10,2) default 0;
+
+alter table orders
+  add column if not exists status_was_deducted boolean default false;
+
+-- Backfill weight_grams từ products.weight (đơn vị g hoặc kg) cho các order_items cũ
+update order_items oi
+   set weight_grams = COALESCE(
+     CASE
+       WHEN p.weight_unit = 'g'  THEN p.weight
+       WHEN p.weight_unit = 'kg' THEN p.weight * 1000
+       WHEN p.weight IS NOT NULL AND p.weight > 0 THEN p.weight * 1000
+       ELSE 0
+     END, 0
+   )
+  from products p
+  where oi.product_id = p.id
+    AND (oi.weight_grams IS NULL OR oi.weight_grams = 0);
 
 -- Normalize status về lowercase (idempotent).
 -- Một số đơn cũ bị insert với status='PENDING' (uppercase) do FE bug → admin filter

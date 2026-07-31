@@ -237,38 +237,113 @@ app.get('/api/orders', async (req, res) => {
 });
 
 app.patch('/api/orders/:id', async (req, res) => {
+  const client = await pool.connect();
   try {
     const id = parseInt(req.params.id, 10);
     if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
     const cols = Object.keys(req.body || {});
     if (!cols.length) return res.status(400).json({ success: false, error: 'Empty body' });
+
+    await client.query('BEGIN');
+
+    // Lấy trạng thái hiện tại trước khi update
+    const before = await client.query('SELECT status, status_was_deducted FROM orders WHERE id = $1 FOR UPDATE', [id]);
+    if (!before.rowCount) {
+      await client.query('COMMIT');
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+    const oldStatus = before.rows[0].status;
+    const alreadyDeducted = before.rows[0].status_was_deducted;
+
     const vals = Object.values(req.body);
-    const set = cols.map((c, i) => `${c} = $${i + 1}`).join(',');
-    const q = `UPDATE orders SET ${set}, updated_at = NOW() WHERE id = $${cols.length + 1} RETURNING *`;
-    const r = await pool.query(q, [...vals, id]);
+    const set = cols.map((c, i) => `${c} = ${i + 1}`).join(',');
+    const q = `UPDATE orders SET ${set}, updated_at = NOW() WHERE id = ${cols.length + 1} RETURNING *`;
+    const r = await client.query(q, [...vals, id]);
+    const newStatus = r.rows[0].status;
+
+    // Trừ tồn kho khi chuyển từ pending -> confirmed (chưa trừ lần nào)
+    if (oldStatus !== 'confirmed' && newStatus === 'confirmed' && !alreadyDeducted) {
+      await client.query(
+        `UPDATE products p
+         SET stock = GREATEST(0, p.stock - oi.quantity)
+         FROM order_items oi
+         WHERE oi.order_id = $1
+           AND oi.product_id IS NOT NULL
+           AND p.id = oi.product_id`,
+        [id]
+      );
+      await client.query(
+        `UPDATE orders SET status_was_deducted = true WHERE id = $1`,
+        [id]
+      );
+    }
+
+    await client.query('COMMIT');
     return res.json({ success: true, data: r.rows[0] });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[orders patch]', err.message);
     return res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
   }
 });
 
 app.post('/api/orders/bulk-confirm', async (req, res) => {
+  const client = await pool.connect();
   try {
     const ids = (req.body && req.body.ids) || [];
     if (!Array.isArray(ids) || !ids.length) {
       return res.status(400).json({ success: false, error: 'ids[] required' });
     }
-    await pool.query(
-      `UPDATE orders SET status = 'confirmed', updated_at = NOW() WHERE id = ANY($1::int[])`,
+    await client.query('BEGIN');
+
+    // 1. Xác nhận đơn hàng (chỉ pending mới được xác nhận để tránh trừ kho lặp)
+    await client.query(
+      `UPDATE orders
+       SET status = 'confirmed', updated_at = NOW()
+       WHERE id = ANY($1::int[]) AND status = 'pending'`,
       [ids]
     );
+
+    // 2. Trừ tồn kho dựa trên order_items; chỉ trừ 1 lần cho mỗi order_id.
+    await client.query(
+      `WITH to_deduct AS (
+         SELECT oi.product_id, oi.quantity, oi.order_id
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+         WHERE o.id = ANY($1::int[])
+           AND o.status = 'confirmed'
+           AND o.status_was_deducted = false
+           AND oi.product_id IS NOT NULL
+       )
+       UPDATE products p
+       SET stock = GREATEST(0, p.stock - d.quantity)
+       FROM to_deduct d
+       WHERE p.id = d.product_id`,
+      [ids]
+    );
+
+    // 3. Đánh dấu đã trừ kho để không trừ lại nếu bulk-confirm chạy lại
+    await client.query(
+      `UPDATE orders
+       SET status_was_deducted = true
+       WHERE id = ANY($1::int[])`,
+      [ids]
+    );
+
+    await client.query('COMMIT');
     const r = await pool.query(
       `SELECT * FROM orders WHERE id = ANY($1::int[])`,
       [ids]
     );
     return res.json({ success: true, data: r.rows });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[bulk-confirm]', err.message);
     return res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
   }
 });
 

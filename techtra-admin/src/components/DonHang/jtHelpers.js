@@ -354,7 +354,8 @@ export function clearJTConfigCache() {
 function calcTotalWeightKg(items, fallbackQty = 1) {
   if (!items?.length) return Math.max(0.1, (fallbackQty * 500) / 1000);
   const totalGrams = items.reduce((s, it) => {
-    const w = Number(it.weight_grams) || 500; // mặc định 500g/SP
+    // ưu tiên weight_grams đã lưu trong order_items; nếu thiếu thì fallback 500g/SP
+    const w = Number(it.weight_grams) || 500;
     return s + w * (Number(it.quantity) || 1);
   }, 0);
   return Math.max(0.1, totalGrams / 1000); // tối thiểu 0.1kg

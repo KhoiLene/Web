@@ -770,7 +770,7 @@ function renderFlashSale(products) {
                                 <span>Số lượng có hạn</span>
                             </div>
                         </div>`}
-                    <button class="btn btn-primary btn-add-cart" onclick="addToCart('${prod.id}', '${escapeAttr(prod.title)}', ${prod.price}, '${img}')"${isExpired ? ' disabled' : ''}>
+                    <button class="btn btn-primary btn-add-cart" onclick="addToCart('${prod.id}', '${escapeAttr(prod.title)}', ${prod.price}, '${img}', ${prod.weight || 0}, '${escapeAttr(prod.weight_unit || 'g')}')"${isExpired ? ' disabled' : ''}>
                         <i class="fa-solid fa-cart-plus"></i> ${isExpired ? 'Hết hạn' : 'Thêm vào giỏ'}
                     </button>
                 </div>
@@ -891,7 +891,7 @@ function renderBestSellers(products, categoryFilter) {
                         <span class="product-price">${formatPrice(prod.price)}</span>
                         ${oldPriceHTML}
                     </div>
-                    <button class="btn btn-primary btn-add-cart" onclick="addToCart(${prod.id}, '${escapeAttr(prod.title)}', ${prod.price}, '${escapeAttr(prod.image)}')">
+                    <button class="btn btn-primary btn-add-cart" onclick="addToCart(${prod.id}, '${escapeAttr(prod.title)}', ${prod.price}, '${escapeAttr(prod.image)}', ${prod.weight || 0}, '${escapeAttr(prod.weight_unit || 'g')}')">
                         <i class="fa-solid fa-cart-plus"></i> Thêm vào giỏ
                     </button>
                 </div>
@@ -945,10 +945,32 @@ function renderBlogs(blogs) {
    4. UI INTERACTIONS & COMPONENTS INITIALIZATION
    ========================================================================== */
 
-let cart = []; // Giỏ hàng lưu trữ các item dạng: { id, title, price, image, qty }
+let cart = []; // Giỏ hàng lưu trữ các item dạng: { id, title, price, image, qty, weight, weight_unit }
 let wishlist = new Set(); // Bộ sưu tập yêu thích
 
+const CART_KEY = "techtra_cart";
+
+function saveCart() {
+    try {
+        localStorage.setItem(CART_KEY, JSON.stringify(cart));
+    } catch (e) {
+        // ignore quota errors
+    }
+}
+
+function loadCart() {
+    try {
+        const raw = localStorage.getItem(CART_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
 function initUIComponents() {
+    // Khôi phục giỏ hàng từ localStorage khi khởi tạo UI
+    cart = loadCart();
+
     // Header Sticky shrink
     const header = document.getElementById('main-header-el');
     if (header) {
@@ -1033,7 +1055,8 @@ function initUIComponents() {
             if (cart.length === 0) {
                 alert("Giỏ hàng của bạn đang trống! Hãy thêm sản phẩm trước.");
             } else {
-                alert("Chức năng đặt hàng: Kết nối API thanh toán của bạn tại đây!");
+                saveCart();
+                window.location.href = '/components/thanh-toan/thanh-toan.html';
             }
         });
     }
@@ -1104,16 +1127,18 @@ function initSlider() {
    6. INTERACTIVE CART & WISHLIST LOGIC (Hoạt động độc lập bằng JS)
    ========================================================================== */
 
-// Thêm sản phẩm vào giỏ hàng
-window.addToCart = function(id, title, price, image) {
+// Thêm sản phẩm vào giỏ hàng (có trọng lượng phục vụ J&T / vận chuyển)
+window.addToCart = function(id, title, price, image, weight = 0, weightUnit = 'g') {
     const existingItem = cart.find(item => item.id === id);
 
     if (existingItem) {
         existingItem.qty += 1;
     } else {
-        cart.push({ id, title, price, image, qty: 1 });
+        const grams = String(weightUnit).toLowerCase() === 'kg' ? Number(weight || 0) * 1000 : Number(weight || 0);
+        cart.push({ id, title, price, image, qty: 1, weight, weight_unit: weightUnit, weight_grams: grams });
     }
 
+    saveCart();
     updateCartUI();
     
     // Tự động mở Giỏ hàng nhanh để thông báo khách hàng
@@ -1190,6 +1215,7 @@ window.changeQty = function(id, delta) {
     if (item.qty <= 0) {
         removeCartItem(id);
     } else {
+        saveCart();
         updateCartUI();
     }
 };
@@ -1197,6 +1223,7 @@ window.changeQty = function(id, delta) {
 // Xóa sản phẩm khỏi giỏ hàng
 window.removeCartItem = function(id) {
     cart = cart.filter(item => item.id !== id);
+    saveCart();
     updateCartUI();
 };
 
