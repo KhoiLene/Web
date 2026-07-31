@@ -1,10 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // tin-tuc-chi-tiet.js — Trang chi tiết 1 bài viết (public)
-// Đọc ?slug=... từ URL, lấy 1 bài published từ Supabase, render + load bài liên quan
+// Đọc ?slug=... từ URL, lấy 1 bài published từ backend Express, render + load bài liên quan
 // Hỗ trợ 3 loại: link / file (PDF) / manual (HTML)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { supabase } from "../../components/api-service/api.js";
+import { request } from "../../components/api-service/api.js";
 
 // ─── DOM refs ────────────────────────────────────────────────────────────────
 const $loading     = document.getElementById("tdLoading");
@@ -282,14 +282,12 @@ async function loadPost(slug) {
   try {
     if (!slug) throw new Error("Thiếu slug trong URL");
 
-    const { data, error } = await supabase
-      .from("posts")
-      .select("*")
-      .eq("slug", slug)
-      .eq("status", "published")
-      .maybeSingle();
+    const r = await request(
+      "GET",
+      `/db/posts?select=*&slug=eq.${encodeURIComponent(slug)}&status=eq.published&limit=1`
+    );
+    const data = (r.data || [])[0];
 
-    if (error) throw new Error(error.message);
     if (!data) {
       $error.innerHTML = `<i class="fas fa-exclamation-circle"></i> Không tìm thấy bài viết (slug: <code>${esc(slug)}</code>). Có thể bài đã bị ẩn hoặc slug sai.`;
       showState("error");
@@ -299,20 +297,19 @@ async function loadPost(slug) {
     // Load category + root (best-effort)
     let category = null, root = null;
     if (data.category_id) {
-      const { data: cat } = await supabase
-        .from("news_categories")
-        .select("id, name, slug, parent_id, icon")
-        .eq("id", data.category_id)
-        .maybeSingle();
+      const catR = await request(
+        "GET",
+        `/db/news_categories?select=id,name,slug,parent_id,icon&id=eq.${data.category_id}&limit=1`
+      );
+      const cat = (catR.data || [])[0];
       if (cat) {
         category = cat;
         if (cat.parent_id) {
-          const { data: r } = await supabase
-            .from("news_categories")
-            .select("id, name, slug")
-            .eq("id", cat.parent_id)
-            .maybeSingle();
-          root = r;
+          const rootR = await request(
+            "GET",
+            `/db/news_categories?select=id,name,slug&id=eq.${cat.parent_id}&limit=1`
+          );
+          root = (rootR.data || [])[0];
         }
       }
     }
@@ -320,37 +317,27 @@ async function loadPost(slug) {
 
     // Load bài liên quan: ưu tiên cùng category_id, fallback cùng site, fallback random
     let rel = null;
+    const relatedSelect = "id,slug,title,site_name,thumbnail,thumbnail_source,post_type,file_name,file_size,published_at,created_at";
     if (data.category_id) {
-      const { data: c1 } = await supabase
-        .from("posts")
-        .select("id, slug, title, site_name, thumbnail, thumbnail_source, post_type, file_name, file_size, published_at, created_at")
-        .eq("status", "published")
-        .eq("category_id", data.category_id)
-        .neq("slug", slug)
-        .order("published_at", { ascending: false })
-        .limit(4);
-      if (c1 && c1.length) rel = c1;
+      const c1 = await request(
+        "GET",
+        `/db/posts?select=${relatedSelect}&status=eq.published&category_id=eq.${data.category_id}&slug=neq.${encodeURIComponent(slug)}&order=published_at.desc&limit=4`
+      );
+      if (c1.data && c1.data.length) rel = c1.data;
     }
     if (!rel && data.site_name) {
-      const { data: c2 } = await supabase
-        .from("posts")
-        .select("id, slug, title, site_name, thumbnail, thumbnail_source, post_type, file_name, file_size, published_at, created_at")
-        .eq("status", "published")
-        .eq("site_name", data.site_name)
-        .neq("slug", slug)
-        .order("published_at", { ascending: false })
-        .limit(4);
-      if (c2 && c2.length) rel = c2;
+      const c2 = await request(
+        "GET",
+        `/db/posts?select=${relatedSelect}&status=eq.published&site_name=eq.${encodeURIComponent(data.site_name)}&slug=neq.${encodeURIComponent(slug)}&order=published_at.desc&limit=4`
+      );
+      if (c2.data && c2.data.length) rel = c2.data;
     }
     if (!rel) {
-      const { data: c3 } = await supabase
-        .from("posts")
-        .select("id, slug, title, site_name, thumbnail, thumbnail_source, post_type, file_name, file_size, published_at, created_at")
-        .eq("status", "published")
-        .neq("slug", slug)
-        .order("published_at", { ascending: false })
-        .limit(4);
-      rel = c3;
+      const c3 = await request(
+        "GET",
+        `/db/posts?select=${relatedSelect}&status=eq.published&slug=neq.${encodeURIComponent(slug)}&order=published_at.desc&limit=4`
+      );
+      rel = c3.data || [];
     }
     if (rel && rel.length) renderRelated(rel);
   } catch (err) {

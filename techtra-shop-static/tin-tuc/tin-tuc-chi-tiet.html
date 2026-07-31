@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bài viết | Techtra</title>
+  <meta name="description" content="Đọc bài viết chi tiết — Techtra.">
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <!-- Site styles -->
+  <link rel="stylesheet" href="../../components/tin-tuc/tin-tuc-chi-tiet.css">
+  <!-- <link rel="stylesheet" href="/components/Header/header.css">
+  <link rel="stylesheet" href="/components/Footer/footer.css"> -->
+</head>
+<body>
+
+  <!-- Header -->
+  <div id="header-placeholder"></div>
+  <main class="td-page">
+
+    <!-- Back link + breadcrumb -->
+    <div class="td-back">
+      <a href="../../components/tin-tuc/tin-tuc.html"><i class="fas fa-arrow-left"></i> Quay lại danh sách</a>
+      <nav class="td-breadcrumb" id="tdBreadcrumb"></nav>
+    </div>
+
+    <!-- Loading / error -->
+    <div class="td-state td-loading" id="tdLoading">
+      <i class="fas fa-spinner fa-spin"></i> Đang tải bài viết...
+    </div>
+    <div class="td-state td-error" id="tdError" style="display:none;"></div>
+
+    <!-- Bài viết (render khi load xong) -->
+    <article class="td-article" id="tdArticle" style="display:none;">
+
+      <headerst class="td-header">
+        <div class="td-meta-top">
+          <span class="td-type-badge" id="tdTypeBadge" style="display:none;"></span>
+          <span class="td-site" id="tdSite" style="display:none;"></span>
+          <span class="td-date" id="tdDate"></span>
+        </div>
+        <h1 class="td-title" id="tdTitle"></h1>
+        <p class="td-summary" id="tdSummary" style="display:none;"></p>
+        <div class="td-byline" id="tdByline" style="display:none;"></div>
+      </headerst>
+
+      <figure class="td-hero" id="tdHero" style="display:none;">
+        <img id="tdHeroImg" alt="">
+        <figcaption id="tdHeroCap" style="display:none;"></figcaption>
+      </figure>
+
+      <!-- Khối hiển thị cho bài FILE -->
+      <div class="td-file-block" id="tdFileBlock" style="display:none;">
+        <div class="td-file-icon"><i id="tdFileIcon" class="fas fa-file-pdf"></i></div>
+        <div class="td-file-meta">
+          <div class="td-file-name" id="tdFileName"></div>
+          <div class="td-file-size" id="tdFileSize"></div>
+        </div>
+        <a class="td-file-download" id="tdFileDownload" href="#" target="_blank" rel="noopener noreferrer">
+          <i class="fas fa-download"></i> Tải về
+        </a>
+      </div>
+
+      <div class="td-content" id="tdContent"></div>
+
+      <footer class="td-footer">
+        <a id="tdSourceLink" class="td-source" href="#" target="_blank" rel="noopener noreferrer" style="display:none;">
+          <i class="fas fa-external-link-alt"></i> Đọc bài gốc trên <span id="tdSourceSite"></span>
+        </a>
+        <a class="td-back-btn" href="../../components/tin-tuc/tin-tuc.html">
+          <i class="fas fa-list"></i> Xem các bài khác
+        </a>
+      </footer>
+    </article>
+
+    <!-- Liên quan -->
+    <section class="td-related" id="tdRelated" style="display:none;">
+      <h2 class="td-related-title"><i class="fas fa-newspaper"></i> Bài viết khác</h2>
+      <div class="td-related-grid" id="tdRelatedGrid"></div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <div id="footer-placeholder"></div>
+
+  <!-- Supabase + page logic -->
+  <script src="../../components/header/partials.js"></script>
+  <script type="module" src="../../components/tin-tuc/tin-tuc-chi-tiet.js"></script>
+</body>
+</html>

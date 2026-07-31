@@ -4,17 +4,44 @@
 const https = require('https');
 const querystring = require('querystring');
 
+function resolvePool() {
+  try {
+    const server = require('../server.js');
+    if (server && server.pool && typeof server.pool.query === 'function') return server.pool;
+  } catch (_) { /* fallthrough */ }
+  return null;
+}
+
+async function loadZaloFromDb() {
+  const pool = resolvePool();
+  if (!pool) return null;
+  try {
+    const r = await pool.query(
+      `SELECT key, value FROM site_settings WHERE key LIKE 'zalo_%'`
+    );
+    const cfg = {};
+    (r.rows || []).forEach((row) => { cfg[row.key] = row.value; });
+    return cfg;
+  } catch (_) {
+    return null;
+  }
+}
+
 /**
  * Sends a verification code via Zalo API
  * @param {string} phoneNumber - The recipient's phone number
  * @param {string} code - The 6-digit verification code
  * @returns {Promise<Object>} - Promise resolving to API response
  */
-function sendZaloVerification(phoneNumber, code) {
-    // TODO: Replace with actual Zalo API credentials and endpoint
-    const zaloAppId = process.env.ZALO_APP_ID || 'your_app_id';
-    const zaloSecretKey = process.env.ZALO_SECRET_KEY || 'your_secret_key';
-    const accessToken = process.env.ZALO_ACCESS_TOKEN || 'your_access_token'; // if using token
+async function sendZaloVerification(phoneNumber, code) {
+    const dbCfg = await loadZaloFromDb();
+    let zaloAppId     = process.env.ZALO_APP_ID     || (dbCfg && dbCfg.zalo_app_id)     || '';
+    let zaloSecretKey = process.env.ZALO_SECRET_KEY || (dbCfg && dbCfg.zalo_secret_key) || '';
+    let accessToken   = process.env.ZALO_ACCESS_TOKEN || (dbCfg && dbCfg.zalo_access_token) || '';
+
+    if (!zaloAppId || !zaloSecretKey || !accessToken) {
+      throw new Error('Zalo OA chưa được cấu hình. Cần set ZALO_APP_ID, ZALO_SECRET_KEY, ZALO_ACCESS_TOKEN trong .env hoặc site_settings.');
+    }
 
     // Example: Zalo OA API for sending template message
     // Reference: https://developers.zalo.me/docs/official-account/api/send-message/
@@ -35,7 +62,7 @@ function sendZaloVerification(phoneNumber, code) {
         headers: {
             'Content-Type': 'application/json',
             'Content-Length': Buffer.byteLength(postData),
-            // 'access_token': accessToken // Depending on auth method
+            'access_token': accessToken,
         }
     };
 

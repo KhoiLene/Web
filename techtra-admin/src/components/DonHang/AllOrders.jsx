@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import "./DonHang.css";
-import { supabase } from "../../api";
+import { ordersApi } from "../../api";
 import OrderTable from "./OrderTable";
 import { printOrdersAsPDF } from "./printOrder";
 import { createJTOrder } from "./jtHelpers";
@@ -18,6 +18,7 @@ const FILTERS = [
   { key: "shipping",  label: "Đang giao",      icon: "fa-truck",         status: "shipping" },
   { key: "done",      label: "Hoàn tất",       icon: "fa-circle-check",  status: "done" },
   { key: "cancelled", label: "Đã huỷ",         icon: "fa-ban",           status: "cancelled" },
+  { key: "deleted_before_ship", label: "Xóa trước khi giao", icon: "fa-truck-arrow-right", status: "deleted_before_ship" },
 ];
 
 export default function AllOrders() {
@@ -29,12 +30,8 @@ export default function AllOrders() {
     setLoading(true);
     setError("");
     try {
-      const { data, error: e2 } = await supabase
-        .from("v_orders_full")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (e2) throw new Error(e2.message);
-      setOrders(data || []);
+      const r = await ordersApi.getAll();
+      setOrders(r.data || []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -47,34 +44,43 @@ export default function AllOrders() {
   // Bulk: cập nhật status = confirmed cho nhiều đơn rồi in PDF
   const handleBulkConfirm = useCallback(async (selected) => {
     if (!selected.length) return;
-    const ids = selected.map((o) => o.id);
 
-    // 1. Update DB trước
-    const { error: e2 } = await supabase
-      .from("orders")
-      .update({ status: "confirmed", updated_at: new Date().toISOString() })
-      .in("id", ids);
-    if (e2) {
-      alert("Lỗi cập nhật: " + e2.message);
+    const norm = (s) => String(s || "").toLowerCase();
+    const targets = selected.filter(
+      (o) => norm(o.status) === "pending" || norm(o.status) === "deleted_before_ship"
+    );
+    if (!targets.length) {
+      alert(
+        "Không có đơn nào phù hợp để 'Xác nhận & In phiếu'.\n" +
+        "(Chỉ áp dụng cho đơn 'Chờ xác nhận' hoặc 'Xóa trước khi giao')."
+      );
       return;
     }
+    const ids = targets.map((o) => o.id);
 
-    // 2. Update state local
-    setOrders((prev) =>
-      prev.map((o) => (ids.includes(o.id) ? { ...o, status: "confirmed" } : o))
-    );
+    try {
+      const freshData = await ordersApi.bulkConfirm(ids);
 
-    // 3. Refresh data + in PDF
-    await fetchOrders();
-    const fresh = orders.filter((o) => ids.includes(o.id)).map((o) => ({ ...o, status: "confirmed" }));
-    if (fresh.length) {
-      await printOrdersAsPDF(fresh);
+      // Update state local để UI đồng bộ
+      setOrders((prev) =>
+        prev.map((o) =>
+          ids.includes(o.id)
+            ? { ...o, status: "confirmed" }
+            : o
+        )
+      );
+
+      // In PDF với data mới (giữ nguyên final_price, items, v.v.)
+      if (freshData && freshData.length) {
+        await printOrdersAsPDF(freshData);
+      }
+    } catch (err) {
+      alert("Lỗi: " + err.message);
     }
-  }, [orders, fetchOrders]);
+  }, [fetchOrders]);
 
   // Bulk: tạo vận đơn J&T cho nhiều đơn (chỉ đơn đã confirmed/shipping, chưa có billCode)
   const handleBulkCreateJT = useCallback(async (selected) => {
-    // Lọc: status phù hợp + chưa có billCode
     const targets = selected.filter(
       (o) => (o.status === "confirmed" || o.status === "shipping") && !o.jt_bill_code
     );

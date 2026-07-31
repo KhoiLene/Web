@@ -34,6 +34,9 @@
               <a class="btn btn-ghost" href="/components/quen-mk/index.html">
                 <i class="fa-solid fa-lock"></i> Đổi / đặt lại mật khẩu
               </a>
+              <button type="button" id="logoutBtn" class="btn btn-ghost btn-danger">
+                <i class="fa-solid fa-right-from-bracket"></i> Đăng xuất
+              </button>
             </div>
 
             <form id="profileForm" class="form-grid">
@@ -43,11 +46,29 @@
               </div>
               <div class="field">
                 <label for="customerPhone">Số điện thoại</label>
-                <input id="customerPhone" type="text" placeholder="Nhập số điện thoại" />
+                <div class="otp-row">
+                  <input id="customerPhone" type="text" placeholder="Nhập số điện thoại" />
+                  <button type="button" id="sendPhoneOtpBtn" class="btn-mini">Gửi mã</button>
+                  <span id="phoneVerifiedBadge" class="otp-badge" hidden>✓ Đã xác thực</span>
+                </div>
+                <div class="otp-input-wrap" id="phoneOtpWrap" hidden>
+                  <input id="phoneOtpCode" maxlength="6" placeholder="Mã 6 số" inputmode="numeric" />
+                  <button type="button" id="verifyPhoneOtpBtn" class="btn-mini">Xác nhận</button>
+                  <small id="phoneOtpHint" class="otp-hint">Mã có hiệu lực 5 phút.</small>
+                </div>
               </div>
               <div class="field">
                 <label for="customerEmail">Email</label>
-                <input id="customerEmail" type="email" placeholder="Nhập email" />
+                <div class="otp-row">
+                  <input id="customerEmail" type="email" placeholder="Nhập email" />
+                  <button type="button" id="sendEmailOtpBtn" class="btn-mini">Gửi mã</button>
+                  <span id="emailVerifiedBadge" class="otp-badge" hidden>✓ Đã xác thực</span>
+                </div>
+                <div class="otp-input-wrap" id="emailOtpWrap" hidden>
+                  <input id="emailOtpCode" maxlength="6" placeholder="Mã 6 số" inputmode="numeric" />
+                  <button type="button" id="verifyEmailOtpBtn" class="btn-mini">Xác nhận</button>
+                  <small id="emailOtpHint" class="otp-hint">Mã có hiệu lực 5 phút.</small>
+                </div>
               </div>
               <div class="field field--full">
                 <label for="customerAddress">Địa chỉ</label>
@@ -111,7 +132,8 @@
 
     <div id="footer-placeholder"></div>
 
-    <script src="/components/tin-tuc/partials.js?v=3"></script>
+    <script src="/components/header/partials.js?v=3"></script>
+    <script src="/components/dang-ky/sendCode.js?v=1"></script>
     <script type="module" src="/components/khach-hang/khach-hang.js?v=1"></script>
   </body>
 </html>

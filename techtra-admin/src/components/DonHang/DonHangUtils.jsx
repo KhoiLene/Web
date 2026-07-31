@@ -4,7 +4,7 @@
 // =====================================================================
 
 import React, { useEffect, useState } from "react";
-import { supabase } from "../../api";
+import { ordersApi } from "../../api";
 import { printSingleOrder } from "./printOrder";
 import {
   createJTOrder,
@@ -16,15 +16,26 @@ import {
 } from "./jtHelpers";
 
 export const fmtVND = (n) => Number(n || 0).toLocaleString("vi-VN") + "đ";
-export const fmtDate = (iso) => (iso ? new Date(iso).toLocaleString("vi-VN") : "—");
+// ÉP hiển thị theo giờ VN (Asia/Ho_Chi_Minh, +07:00) bất kể máy admin ở TZ nào.
+// DB lưu timestamp (UTC qua PostgREST). Nếu không ép TZ, admin mở panel ở máy TZ khác
+// sẽ thấy giờ lệch.
+export const fmtDate = (iso) => {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+};
 
 // ─── Map status → label + màu ────────────────────────────────────────
 export const STATUS_META = {
-  pending:    { label: "Chờ xác nhận", color: "#a16207", bg: "#fef3c7" },
-  confirmed:  { label: "Đã xác nhận",  color: "#1d4ed8", bg: "#dbeafe" },
-  shipping:   { label: "Đang giao",    color: "#7c3aed", bg: "#ede9fe" },
-  done:       { label: "Hoàn tất",     color: "#15803d", bg: "#dcfce7" },
-  cancelled:  { label: "Đã huỷ",       color: "#b91c1c", bg: "#fee2e2" },
+  pending:               { label: "Chờ xác nhận", color: "#a16207", bg: "#fef3c7" },
+  confirmed:             { label: "Đã xác nhận",  color: "#1d4ed8", bg: "#dbeafe" },
+  shipping:              { label: "Đang giao",    color: "#7c3aed", bg: "#ede9fe" },
+  done:                  { label: "Hoàn tất",     color: "#15803d", bg: "#dcfce7" },
+  cancelled:             { label: "Đã huỷ",       color: "#b91c1c", bg: "#fee2e2" },
+  deleted_before_ship:  { label: "Xóa trước khi giao", color: "#0f766e", bg: "#ccfbf1" },
 };
 
 export const PAYMENT_META = {
@@ -39,11 +50,7 @@ export async function changeOrderStatus(order, newStatus) {
   if (newStatus === "cancelled" && !window.confirm(`Huỷ đơn "${order.order_code}"?`)) {
     return null;
   }
-  const { error: e2 } = await supabase
-    .from("orders")
-    .update({ status: newStatus, updated_at: new Date().toISOString() })
-    .eq("id", order.id);
-  if (e2) throw new Error(e2.message);
+  await ordersApi.update(order.id, { status: newStatus });
   return newStatus;
 }
 
@@ -58,13 +65,8 @@ export function OrderDetailModal({ order, onClose, onChangeStatus }) {
     let cancelled = false;
     (async () => {
       try {
-        const { data, error: e2 } = await supabase
-          .from("order_items")
-          .select("id, product_id, product_name, product_sku, image_url, quantity, unit_price, discount, subtotal")
-          .eq("order_id", order.id)
-          .order("id", { ascending: true });
-        if (e2) throw new Error(e2.message);
-        if (!cancelled) setItems(data || []);
+        const items = await ordersApi.getItems(order.id);
+        if (!cancelled) setItems(items || []);
       } catch (err) {
         console.error(err);
       } finally {
@@ -105,13 +107,16 @@ export function OrderDetailModal({ order, onClose, onChangeStatus }) {
               >
                 <i className="fas fa-print"></i> In phiếu
               </button>
-              {order.status === "pending" && (
+              {(order.status === "pending" || order.status === "cancelled") && (
                 <>
                   <button className="dh-btn primary" onClick={() => onChangeStatus("confirmed")}>
                     <i className="fas fa-check"></i> Xác nhận
                   </button>
                   <button className="dh-btn danger" onClick={() => onChangeStatus("cancelled")}>
                     <i className="fas fa-ban"></i> Huỷ
+                  </button>
+                  <button className="dh-btn" onClick={() => onChangeStatus("deleted_before_ship")} title="Đổi status để xóa trước khi giao (không delete DB)">
+                    <i className="fas fa-truck-arrow-right"></i> Xóa trước khi giao
                   </button>
                 </>
               )}

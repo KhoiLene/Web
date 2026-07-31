@@ -354,13 +354,13 @@ function ScrapeModal({ tree, onClose, onDone }) {
         const body = {
           title: d.title,
           slug,
-          content: d.textContent?.slice(0, 5000) || null,
-          excerpt_html: d.content,
+          content: d.content || null,          // HTML đầy đủ để shop hiển thị
+          excerpt_html: d.content || null,     // backup HTML
           thumbnail: d.image || null,
           thumbnail_source: d.image || null,
           source_url: r.url,
           site_name: d.siteName || null,
-          summary: d.excerpt || null,
+          summary: d.excerpt || d.textContent?.slice(0, 240) || null,
           status: "published",
           published_at: new Date().toISOString(),
           post_type: "scraped",
@@ -588,6 +588,11 @@ function EditPost({ initial, tree, onBack, onSaved }) {
   const [saving,      setSaving]      = useState(false);
   const [error,       setError]       = useState("");
 
+  // Scrape (cho loại "scraped")
+  const [scrapingUrl, setScrapingUrl] = useState(initial.source_url || "");
+  const [scrapingLoading, setScrapingLoading] = useState(false);
+  const [scrapingError, setScrapingError] = useState("");
+
   useEffect(() => {
     if (!isEdit) setSlug(toSlug(title));
   }, [title, isEdit]);
@@ -632,6 +637,31 @@ function EditPost({ initial, tree, onBack, onSaved }) {
 
   const removeFile = () => {
     setFileUrl(""); setFileName(""); setFileSize(0);
+  };
+
+  const handleScrapeFromForm = async () => {
+    const url = scrapingUrl.trim();
+    if (!url || !/^https?:\/\//i.test(url)) {
+      setScrapingError("Vui lòng nhập URL hợp lệ bắt đầu bằng http:// hoặc https://");
+      return;
+    }
+    setScrapingLoading(true);
+    setScrapingError("");
+    try {
+      const data = await newsScrapeApi.scrapeOne(url);
+      if (!data || !data.title) throw new Error("Không lấy được nội dung từ link.");
+      setTitle(data.title);
+      setContent(data.content || "");
+      setExcerpt(data.excerpt || "");
+      setThumbnail(data.image || "");
+      setSiteName(data.siteName || "");
+      setSourceUrl(data.sourceUrl || url);
+      setSlug(toSlug(data.title) + "-" + Date.now().toString(36));
+    } catch (err) {
+      setScrapingError(err.message || "Lỗi scrape");
+    } finally {
+      setScrapingLoading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -819,6 +849,33 @@ function EditPost({ initial, tree, onBack, onSaved }) {
 
         {(postType === "manual" || postType === "scraped") && (
           <>
+            {postType === "scraped" && (
+              <div className="nw-field">
+                <label><span className="req">*</span> Link báo gốc</label>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    type="url"
+                    value={scrapingUrl}
+                    onChange={(e) => setScrapingUrl(e.target.value)}
+                    placeholder="https://vnexpress.net/..."
+                    style={{ flex: 1 }}
+                    disabled={scrapingLoading}
+                  />
+                  <button
+                    type="button"
+                    className="nw-btn nw-btn-primary"
+                    onClick={handleScrapeFromForm}
+                    disabled={scrapingLoading}
+                  >
+                    {scrapingLoading ? "⌛ Đang lấy..." : "Lấy nội dung"}
+                  </button>
+                </div>
+                {scrapingError && <small style={{ color: "#dc2626", marginTop: 4, display: "block" }}>{scrapingError}</small>}
+                <small style={{ color: "#6b7280", display: "block", marginTop: 4 }}>
+                  Hỗ trợ: VnExpress, Tuổi Trẻ, Dân Trí, VietnamNet, Thanh Niên, Zing News, Kenh14…
+                </small>
+              </div>
+            )}
             <div className="nw-field">
               <label>Nội dung (HTML)</label>
               <textarea

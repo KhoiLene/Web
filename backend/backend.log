@@ -1,0 +1,16 @@
+
+> techtra-backend@1.0.0 start
+> node server.js
+
+Server is running on port 5050
+Database connected successfully
+[db POST] duplicate key value violates unique constraint "products_slug_key"
+[db POST] duplicate key value violates unique constraint "products_slug_key"
+[db POST] duplicate key value violates unique constraint "products_slug_key"
+[db PATCH] duplicate key value violates unique constraint "products_sku_key"
+[db POST] duplicate key value violates unique constraint "products_slug_key"
+[db POST] duplicate key value violates unique constraint "products_slug_key"
+[db POST] duplicate key value violates unique constraint "products_slug_key"
+[db POST] duplicate key value violates unique constraint "products_slug_key"
+[db POST] duplicate key value violates unique constraint "products_slug_key"
+[db POST] duplicate key value violates unique constraint "products_slug_key"

@@ -262,10 +262,45 @@ create table if not exists admins (
   name       varchar(255),
   email      varchar(255) unique not null,
   password   varchar(255) not null,                   -- bcrypt hash
+
+  -- superadmin/admin
   role       varchar(20)  default 'admin',            -- 'superadmin' | 'admin'
+
+  -- Ưu tiên (top 2) — dùng khi nâng cấp cơ chế admin top priority.
+  -- (Nếu bạn không dùng, vẫn OK vì logic hiện tại FE chỉ dựa role.)
+  admin_priority integer default 0,
+
   is_active  boolean      default true,
   created_at timestamp    default now()
 );
+
+-- Enforce: chỉ tối đa 2 tài khoản role='superadmin'
+-- (dựa trên role trước đó; nếu role policy của bạn phức tạp hơn, mình sẽ chỉnh lại)
+create or replace function enforce_superadmin_limit()
+returns trigger as $
+begin
+  if (NEW.role = 'superadmin') then
+    if (tg_op = 'INSERT') then
+      if (select count(*) from admins a where a.role = 'superadmin') >= 2 then
+        raise exception 'Superadmin limit exceeded (max 2)';
+      end if;
+    else
+      -- UPDATE: nếu đổi role sang superadmin
+      if (OLD.role <> 'superadmin') then
+        if (select count(*) from admins a where a.role = 'superadmin' and a.id <> OLD.id) >= 2 then
+          raise exception 'Superadmin limit exceeded (max 2)';
+        end if;
+      end if;
+    end if;
+  end if;
+  return NEW;
+end;
+$ language plpgsql;
+
+drop trigger if exists trg_enforce_superadmin_limit on admins;
+create trigger trg_enforce_superadmin_limit
+before insert or update of role on admins
+for each row execute function enforce_superadmin_limit();
 
 
 -- =============================================================
@@ -694,11 +729,14 @@ end $;
 -- =============================================================
 
 -- Admin mặc định (password: admin123 — đổi ngay)
-insert into admins (name, email, password, role) values
-  ('Super Admin', 'admin@techtra.vn', '$2b$10$placeholder_hash_change_me', 'superadmin')
+-- Lưu ý: admin DB hiện dùng cột password theo backend/server.js.
+-- Thêm admin_priority để phục vụ cơ chế top-2 nếu bạn dùng.
+insert into admins (name, email, password, role, admin_priority) values
+  ('Super Admin', 'admin@techtra.vn', '$2b$10$placeholder_hash_change_me', 'superadmin', 1)
 on conflict (email) do nothing;
 
 -- User mặc định cho shop
+-- (FE backend login user dùng bảng users: password_hash)
 insert into users (username, email, password_hash, full_name, role) values
   ('admin', 'admin@techtra.vn', '$2b$10$placeholder_admin_hash', 'Quản trị viên', 'admin'),
   ('user',  'user@techtra.vn',  '$2b$10$placeholder_user_hash',  'Khách hàng',    'user')
@@ -1624,6 +1662,7 @@ select
   o.final_price,
 
   o.payment_method,
+  o.payment_code,
   o.payment_status,
   o.status,
   o.note,
@@ -2097,6 +2136,7 @@ select
   o.final_price,
 
   o.payment_method,
+  o.payment_code,
   o.payment_status,
   o.status,
   o.note,
@@ -2167,5 +2207,72 @@ create policy p_auth_update_site_settings
 --   select value_json from site_settings where key = 'jt_config'
 -- Gợi ý: tách riêng key bí mật (data_digest key) ra khỏi payload trả về
 -- cho client, hoặc chuyển việc build data_digest sang backend/Edge Function.
+
+
+-- =============================================================
+-- §END  PATCH: thêm cột orders để khớp FE thanh-toan.js
+-- -------------------------------------------------------------
+-- Lý do: FE (techtra-shop/src/components/thanh-toan/thanh-toan.js) gửi payload
+--   { receiver_name, receiver_phone, receiver_email, receiver_address,
+--     subtotal_price, discount_price, voucher_code, voucher_discount_type,
+--     voucher_discount_value }
+-- vào bảng `orders`, nhưng schema cũ chỉ có
+--   { customer_name, customer_phone, address, total_price, discount_amount }.
+-- Block này CHỈ THÊM cột mới (không rename, không xoá, không đụng view cũ).
+-- Idempotent — chạy nhiều lần không lỗi.
+-- =============================================================
+
+-- Thêm cột mới trên bảng `orders`
+alter table orders
+  add column if not exists receiver_name           varchar(255),
+  add column if not exists receiver_phone          varchar(20),
+  add column if not exists receiver_email          varchar(255),
+  add column if not exists receiver_address        text,
+  add column if not exists subtotal_price          numeric(12,2) default 0,
+  add column if not exists discount_price          numeric(12,2) default 0,
+  add column if not exists voucher_code            varchar(50),
+  add column if not exists voucher_discount_type   varchar(20),
+  add column if not exists voucher_discount_value  numeric(12,2),
+  add column if not exists payment_code           varchar(140),
+  add column if not exists payment_status         varchar(20) default 'pending';
+
+-- Thêm status mới: deleted_before_ship (dùng để "xóa trước khi giao" bằng cách đổi status)
+-- Không cần constraint nếu status đang là varchar; nhưng thêm comment để admin hiểu.
+comment on column orders.status is 'pending/confirmed/shipping/done/cancelled + deleted_before_ship (xóa trước khi giao)';
+
+-- Thêm cột mới trên bảng `order_items` (FE thanh-toan.js gửi `line_total`,
+-- schema cũ chỉ có `subtotal` — thêm cột mới để khớp, không rename để an toàn)
+alter table order_items
+  add column if not exists line_total              numeric(12,2) default 0;
+
+-- Cột `subtotal` hiện NOT NULL nhưng FE không gửi (FE chỉ gửi `line_total`).
+-- Đặt default = 0 để insert không vi phạm NOT NULL.
+-- Cột cũ vẫn an toàn (các order đã có sẵn giữ nguyên giá trị; default chỉ apply cho INSERT mới).
+alter table order_items
+  alter column subtotal set default 0;
+
+-- Đồng thời backfill giá trị subtotal cho các order_items hiện có dựa trên unit_price * quantity
+-- (idempotent: chỉ cập nhật row có subtotal = 0 và đã có unit_price + quantity).
+update order_items
+   set subtotal = unit_price * quantity
+ where coalesce(subtotal, 0) = 0
+   and unit_price is not null
+   and quantity is not null;
+
+-- Normalize status về lowercase (idempotent).
+-- Một số đơn cũ bị insert với status='PENDING' (uppercase) do FE bug → admin filter
+-- "Chờ xác nhận" không match. Hạ về lowercase để khớp default + filter + admin code.
+update orders
+   set status = lower(status)
+ where status <> lower(status);
+
+-- Backfill các cột legacy cho đơn đã có receiver_* nhưng customer_* còn NULL
+-- (admin view `v_orders_full` đọc customer_name → NULL nếu thiếu → hiển thị "(không tên)").
+update orders
+   set customer_name  = coalesce(customer_name, receiver_name),
+       customer_phone = coalesce(customer_phone, receiver_phone),
+       address        = coalesce(address, receiver_address)
+ where (customer_name is null or customer_phone is null or address is null)
+   and (receiver_name is not null or receiver_phone is not null or receiver_address is not null);
 
 

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tất cả sản phẩm | Techtra</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="../../components/tat-ca-san-pham/tat-ca-san-pham.css">
+
+  <script type="importmap">
+  {
+    "imports": {
+      "../../components/api-service/api.js": "../../components/api-service/api.js"
+    }
+  }
+  </script>
+</head>
+<body>
+
+  <div id="header-placeholder"></div>
+
+  <div class="state-message" id="loadingState">⌛ Đang tải tất cả sản phẩm...</div>
+  <div class="state-message error" id="errorState" style="display:none;"></div>
+
+  <main class="all-wrapper" id="allWrapper" style="display:none;">
+    <nav class="breadcrumb" id="breadcrumb">
+      <a href="/components/trang-chu/">Trang chủ</a>
+      / <span style="color:#111827">Tất cả sản phẩm</span>
+    </nav>
+
+    <div class="all-layout">
+
+      <!-- SIDEBAR (desktop + drawer mobile) -->
+      <aside class="all-sidebar" id="sidebar">
+        <button class="sidebar-close" id="sidebarClose" type="button" aria-label="Đóng">
+          <i class="fas fa-times"></i>
+        </button>
+        <h3 class="sidebar-title"><i class="fas fa-filter"></i> Lọc theo nhóm</h3>
+
+        <label class="sidebar-option sidebar-option--all">
+          <input type="radio" name="group-filter" value="__all__" checked>
+          <span class="sidebar-option__label">
+            <strong>Tất cả sản phẩm</strong>
+            <small id="countAll">0</small>
+          </span>
+        </label>
+
+        <ul class="sidebar-tree" id="sidebarTree"></ul>
+      </aside>
+      <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+      <!-- MAIN CONTENT -->
+      <section class="all-main">
+
+        <div class="all-toolbar">
+          <button class="toolbar-filter-btn" id="filterBtn" type="button">
+            <i class="fas fa-sliders-h"></i> Lọc
+          </button>
+
+          <div class="search-inline">
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchInput" placeholder="Tìm sản phẩm...">
+          </div>
+
+          <label class="sort-inline">Sắp xếp:
+            <select id="sortSelect">
+              <option value="newest">Mới nhất</option>
+              <option value="price_asc">Giá tăng dần</option>
+              <option value="price_desc">Giá giảm dần</option>
+              <option value="name">Tên A-Z</option>
+            </select>
+          </label>
+
+          <div class="toolbar-count">
+            <span id="totalCount">0</span> sản phẩm
+          </div>
+        </div>
+
+        <!-- Active filter chip -->
+        <div class="active-filter" id="activeFilter" style="display:none;">
+          <span class="active-filter__label">Đang lọc:</span>
+          <span class="active-filter__chip" id="activeChip">
+            <span id="activeChipText">Tất cả sản phẩm</span>
+            <button type="button" id="clearFilter" aria-label="Bỏ lọc">
+              <i class="fas fa-times"></i>
+            </button>
+          </span>
+        </div>
+
+        <div class="products-grid" id="productsGrid"></div>
+
+        <div class="empty-state" id="emptyState" style="display:none;">
+          <i class="fas fa-box-open"></i>
+          <p>Không có sản phẩm nào phù hợp.</p>
+        </div>
+
+        <!-- PAGINATION -->
+        <nav class="pagination" id="pagination" aria-label="Phân trang"></nav>
+
+      </section>
+    </div>
+  </main>
+
+  <div id="footer-placeholder"></div>
+
+  <script src="../../components/header/partials.js?v=2"></script>
+  <script type="module" src="../../components/tat-ca-san-pham/tat-ca-san-pham.js?v=2"></script>
+</body>
+</html>

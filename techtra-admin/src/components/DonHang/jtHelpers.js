@@ -309,7 +309,7 @@
 // cấp thêm endpoint, bổ sung vào jstService.js rồi nối lại ở đây.
 // =====================================================================
 
-import { supabase } from "../../api";
+import { ordersApi, siteSettingsApi, request } from "../../api";
 import {
   jtCreateOrder,
   jtCancelOrder,
@@ -329,16 +329,11 @@ export async function loadJTConfig({ force = false } = {}) {
   if (_configLoading) return _configLoading;
 
   _configLoading = (async () => {
-    const { data, error } = await supabase
-      .from("site_settings")
-      .select("value_json")
-      .eq("key", SETTINGS_KEY)
-      .maybeSingle();
-    if (error) throw error;
-    if (data?.value_json) {
-      setJTConfig(data.value_json);
-      _configCache = data.value_json;
-      return data.value_json;
+    const cfg = await siteSettingsApi.getJson(SETTINGS_KEY);
+    if (cfg && typeof cfg === "object") {
+      setJTConfig(cfg);
+      _configCache = cfg;
+      return cfg;
     }
     _configCache = null;
     return null;
@@ -367,12 +362,11 @@ function calcTotalWeightKg(items, fallbackQty = 1) {
 
 // ─── Lấy items cho 1 order (nếu chưa có) ────────────────────────────
 export async function fetchOrderItems(orderId) {
-  const { data, error } = await supabase
-    .from("order_items")
-    .select("id, product_name, quantity, unit_price, weight_grams")
-    .eq("order_id", orderId);
-  if (error) throw error;
-  return data || [];
+  const r = await request(
+    "GET",
+    `/db/order_items?order_id=eq.${orderId}&select=id,product_name,quantity,unit_price,weight_grams`
+  );
+  return r.data || [];
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -452,9 +446,8 @@ export async function createJTOrder(techtraOrder, items = null, opts = {}) {
   }
 
   // 6. UPDATE orders với billCode + txlogisticid + tracking
-  const { error: upErr } = await supabase
-    .from("orders")
-    .update({
+  await request("PATCH", "/db/orders", {
+    set: {
       jt_bill_code: result.billCode,
       jt_txlogisticid: txlogisticId, // BẮT BUỘC lưu để dùng cho cancel/update sau này
       jt_tracking_url: `https://jtexpress.vn/tracking?billcode=${result.billCode}`,
@@ -463,11 +456,9 @@ export async function createJTOrder(techtraOrder, items = null, opts = {}) {
       jt_status: "created",
       jt_created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    })
-    .eq("id", techtraOrder.id);
-
-  if (upErr)
-    throw new Error(`Đã tạo vận đơn J&T ${result.billCode} nhưng lỗi cập nhật DB: ${upErr.message}`);
+    },
+    where: { id: techtraOrder.id },
+  });
 
   return {
     billCode: result.billCode,
@@ -491,17 +482,16 @@ export async function cancelJTOrder(techtraOrder, reason = "Khách hàng yêu c�
     reason,
   });
 
-  const { error } = await supabase
-    .from("orders")
-    .update({
+  await request("PATCH", "/db/orders", {
+    set: {
       jt_status: "cancelled",
       jt_cancel_reason: reason,
       jt_last_trace: { cancelledAt: new Date().toISOString(), reason },
       updated_at: new Date().toISOString(),
-    })
-    .eq("id", techtraOrder.id);
+    },
+    where: { id: techtraOrder.id },
+  });
 
-  if (error) throw error;
   return { success: true };
 }
 
@@ -521,16 +511,15 @@ export async function traceJTOrder(techtraOrder) {
   // có thể nằm trong trace.data[...] tuỳ cấu trúc response thật)
   const statusKey = mapJTStatusKey(trace?.status || trace?.orderStatus);
 
-  const { error } = await supabase
-    .from("orders")
-    .update({
+  await request("PATCH", "/db/orders", {
+    set: {
       jt_status: statusKey,
       jt_last_trace: trace,
       updated_at: new Date().toISOString(),
-    })
-    .eq("id", techtraOrder.id);
+    },
+    where: { id: techtraOrder.id },
+  });
 
-  if (error) throw error;
   return { status: statusKey, raw: trace };
 }
 

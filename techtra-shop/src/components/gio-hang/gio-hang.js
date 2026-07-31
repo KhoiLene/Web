@@ -1,4 +1,4 @@
-import { supabase } from "../api-service/api.js";
+import { ordersApi, request } from "../api-service/api.js";
 
 (function () {
   const CART_KEY = "techtra_cart";
@@ -33,11 +33,22 @@ import { supabase } from "../api-service/api.js";
 
   function setCart(cart) {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
+    // Đồng bộ badge icon giỏ hàng trên header (sau khi xoá/tăng/giảm/qty trong gio-hang).
+    if (typeof window.updateCartCount === "function") window.updateCartCount();
   }
 
   function formatVND(n) {
     const num = Number(n || 0);
     return num.toLocaleString("vi-VN") + " đ";
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function formatDateVN(iso) {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
   }
 
   function normalizeCartItem(item) {
@@ -47,7 +58,10 @@ import { supabase } from "../api-service/api.js";
       slug: item.slug,
       image: item.image,
       price: Number(item.price || 0),
-      quantity: Number(item.quantity || 1),
+      quantity: Number(item.quantity || item.qty || 1),
+      variant: item.variant || null,
+      // dùng để phân biệt 2 dòng cùng id nhưng khác variant
+      _key: item.id + ":" + (item.variant ? `${item.variant.size || ""}|${item.variant.color || ""}` : ""),
     };
   }
 
@@ -80,14 +94,11 @@ import { supabase } from "../api-service/api.js";
     if (!trimmed) return null;
 
     // NOTE: voucher code validate dùng v_active_vouchers (đã tạo trong SQL)
-    const { data, error } = await supabase
-      .from("v_active_vouchers")
-      .select("*")
-      .eq("code", trimmed)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data || null;
+    const r = await request(
+      "GET",
+      `/db/v_active_vouchers?code=eq.${encodeURIComponent(trimmed)}&limit=1`
+    );
+    return r.data?.[0] || null;
   }
 
   function renderCart() {
@@ -111,6 +122,14 @@ import { supabase } from "../api-service/api.js";
     $mount.innerHTML = items
       .map((it) => {
         const img = it.image || "https://placehold.co/96x96?text=SP";
+        const v = it.variant;
+        // Hiển thị variant (size/màu nếu có)
+        const variantLabel = v?.size || "";
+        const variantHtml = variantLabel
+          ? `<small class="cart-variant">${esc(variantLabel)}</small>`
+          : (v && (v.color)
+              ? `<small class="cart-variant">${v.color ? "Màu " + esc(v.color) : ""}</small>`
+              : "");
         return `
           <div class="cart-row">
             <div class="col-product">
@@ -119,20 +138,21 @@ import { supabase } from "../api-service/api.js";
                 <div class="item-meta">
                   <a href="/components/san-pham/san-pham.html?slug=${encodeURIComponent(it.slug || it.id)}">${it.name || "Sản phẩm"}</a>
                   <small>${it.slug ? "SKU: " + it.slug : ""}</small>
+                  ${variantHtml}
                 </div>
               </div>
             </div>
             <div class="col-price item-total"><strong>${formatVND(it.price)}</strong></div>
             <div class="col-qty">
               <div class="qty-control">
-                <button type="button" data-action="minus" data-id="${it.id}">-</button>
-                <div class="qty" data-qty="${it.id}">${it.quantity}</div>
-                <button type="button" data-action="plus" data-id="${it.id}">+</button>
+                <button type="button" data-action="minus" data-key="${it._key}">-</button>
+                <div class="qty" data-qty="${it._key}">${it.quantity}</div>
+                <button type="button" data-action="plus" data-key="${it._key}">+</button>
               </div>
             </div>
             <div class="col-total item-total"><strong>${formatVND(it.price * it.quantity)}</strong></div>
             <div class="col-action">
-              <button type="button" class="btn btn-ghost" data-action="remove" data-id="${it.id}">Xoá</button>
+              <button type="button" class="btn btn-ghost" data-action="remove" data-key="${it._key}">Xoá</button>
             </div>
           </div>
         `;
@@ -151,10 +171,10 @@ import { supabase } from "../api-service/api.js";
       const btn = e.target.closest("[data-action]");
       if (!btn) return;
       const action = btn.getAttribute("data-action");
-      const id = btn.getAttribute("data-id");
+      const key = btn.getAttribute("data-key");
 
       const cartNow = getCart().map(normalizeCartItem);
-      const idx = cartNow.findIndex((x) => String(x.id) === String(id));
+      const idx = cartNow.findIndex((x) => x._key === key);
       if (idx === -1) return;
 
       if (action === "minus") {
@@ -166,7 +186,12 @@ import { supabase } from "../api-service/api.js";
         cartNow.splice(idx, 1);
       }
 
-      setCart(cartNow);
+      // Lưu lại về shape gốc (qty thay vì quantity, kèm variant)
+      const rawCart = cartNow.map((it) => ({
+        id: it.id, name: it.name, slug: it.slug, image: it.image,
+        price: it.price, qty: it.quantity, variant: it.variant || null,
+      }));
+      setCart(rawCart);
       // After cart change, re-render and reset voucher message
       $voucherMessage.textContent = "";
       $voucherMessage.className = "voucher-message";
@@ -218,29 +243,26 @@ import { supabase } from "../api-service/api.js";
     const customerId = localStorage.getItem("techtra_customer_id");
     if (!customerId) return;
 
-    const { data, error } = await supabase
-      .from("v_orders_full")
-      .select("order_code, final_price, status, payment_method, created_at")
-      .eq("customer_id", Number(customerId))
-      .order("created_at", { ascending: false })
-      .limit(4);
+    try {
+      const r = await request(
+        "GET",
+        `/orders?status=all`
+      );
+      const data = (r.data || []).filter((o) => Number(o.customer_id) === Number(customerId)).slice(0, 4);
+      if (!data.length) return;
 
-    if (error) {
-      console.warn("load orders preview failed", error);
-      return;
+      $ordersPreviewMount.style.display = "block";
+      $ordersPreviewList.innerHTML = data
+        .map((o) => `
+          <div class="history-item">
+            <strong>${o.order_code}</strong>
+            <span>${o.status} • ${formatVND(o.final_price)} • ${formatDateVN(o.created_at)}</span>
+          </div>
+        `)
+        .join("");
+    } catch (err) {
+      console.warn("[orders-preview] load failed:", err.message);
     }
-
-    if (!data?.length) return;
-
-    $ordersPreviewMount.style.display = "block";
-    $ordersPreviewList.innerHTML = data
-      .map((o) => `
-        <div class="history-item">
-          <strong>${o.order_code}</strong>
-          <span>${o.status} • ${formatVND(o.final_price)} • ${new Date(o.created_at).toLocaleDateString("vi-VN")}</span>
-        </div>
-      `)
-      .join("");
   }
 
   function clearCart() {
@@ -248,6 +270,7 @@ import { supabase } from "../api-service/api.js";
     lastVoucher = null;
     $voucherCode.value = "";
     $voucherMessage.textContent = "";
+    if (typeof window.updateCartCount === "function") window.updateCartCount();
     renderCart();
   }
 

@@ -1,59 +1,17 @@
 // ════════════════════════════════════════════════════════════════════════════
 // htmlPasteSanitizer.js
-// Dùng chung cho mọi ô contentEditable cần dán nội dung từ Word/Google Docs
-// (giữ chữ/màu/in đậm/nghiêng/ảnh, bỏ các thuộc tính CSS gây vỡ layout).
-// Tách ra từ AboutContentTab.jsx để tái sử dụng ở các form khác (VD: mô tả sản phẩm).
+// Dùng chung cho mọi ô contentEditable cần dán nội dung từ Word/Google Docs.
+// GIỮ NGUYÊN 100% định dạng gốc (style, position, float, margin, kích thước ảnh,
+// Elementor class, iframe YouTube, v.v.) đúng như trong Word/Google Docs.
+// Chỉ loại bỏ thẻ <script> vì lý do an toàn (tránh chèn mã độc), không đụng
+// vào bất kỳ thuộc tính hay style nào khác.
+//
+// LƯU Ý: vì không còn lọc position/float/margin âm như trước, nội dung dán từ
+// Word có thể vỡ layout (chữ đè lên ảnh, tràn khung...) khi hiển thị ngoài Word.
+// Shop ve-techtra-moi đã có CSS phòng thủ (`.prose * { position: static !important;
+// float: none !important; max-width: 100% !important; }`) — nên phải dùng đúng
+// class `prose` để khớp 100% với trang Về Techtra public.
 // ════════════════════════════════════════════════════════════════════════════
-
-// Các thuộc tính CSS gây vỡ bố cục khi dán từ Word/Google Docs
-// (Word hay dùng position/float/margin âm để dàn cột — nếu giữ nguyên,
-// nội dung sẽ đè lên nhau khi hiển thị ngoài Word).
-const LAYOUT_BREAKING_PROPS = [
-  "position",
-  "top",
-  "left",
-  "right",
-  "bottom",
-  "float",
-  "z-index",
-  "transform",
-  "clip",
-  "clip-path",
-  "min-height",
-  "max-height",
-];
-
-// Các thuộc tính CSS được PHÉP giữ lại (định dạng chữ)
-const ALLOWED_STYLE_PROPS = [
-  "color",
-  "background-color",
-  "font-family",
-  "font-size",
-  "font-weight",
-  "font-style",
-  "text-decoration",
-  "text-align",
-  "line-height",
-];
-
-function sanitizeStyleAttr(styleText) {
-  if (!styleText) return "";
-  const kept = [];
-  styleText.split(";").forEach((decl) => {
-    const [rawProp, ...rest] = decl.split(":");
-    if (!rawProp || !rest.length) return;
-    const prop = rawProp.trim().toLowerCase();
-    const value = rest.join(":").trim();
-    if (!value) return;
-    if (prop === "width" || prop === "height") return; // ảnh xử lý riêng bên dưới
-    if (LAYOUT_BREAKING_PROPS.includes(prop)) return;
-    if (prop.startsWith("margin") && value.includes("-")) return; // margin âm
-    if (ALLOWED_STYLE_PROPS.includes(prop) || prop.startsWith("margin") || prop.startsWith("padding")) {
-      kept.push(`${prop}: ${value}`);
-    }
-  });
-  return kept.join("; ");
-}
 
 function sanitizeNode(node) {
   if (node.nodeType === Node.TEXT_NODE) return;
@@ -61,41 +19,29 @@ function sanitizeNode(node) {
 
   const tag = node.tagName.toLowerCase();
 
-  if (tag === "style" || tag === "script" || tag === "meta" || tag === "link") {
+  // Chỉ loại bỏ thẻ có thể gây hại. Không xoá attribute/style nào khác.
+  if (tag === "script") {
     node.remove();
     return;
-  }
-
-  [...node.attributes].forEach((attr) => {
-    const name = attr.name.toLowerCase();
-    if (name === "style") return;
-    if (name === "src" || name === "href" || name === "alt" || name === "colspan" || name === "rowspan") return;
-    node.removeAttribute(attr.name);
-  });
-
-  if (node.hasAttribute("style")) {
-    const cleanStyle = sanitizeStyleAttr(node.getAttribute("style"));
-    if (cleanStyle) node.setAttribute("style", cleanStyle);
-    else node.removeAttribute("style");
-  }
-
-  if (tag === "img") {
-    node.style.maxWidth = "100%";
-    node.style.height = "auto";
-    node.removeAttribute("width");
-    node.removeAttribute("height");
   }
 
   [...node.childNodes].forEach(sanitizeNode);
 }
 
-// Làm sạch toàn bộ HTML được dán: giữ chữ/màu/in đậm/nghiêng/ảnh,
-// bỏ position/float/margin âm/kích thước cố định gây đè chữ lên ảnh
+// Làm sạch tối thiểu HTML được dán: chỉ chặn script, giữ nguyên mọi thứ khác
 export function sanitizePastedHtml(rawHtml) {
+  if (!rawHtml) return "";
+  const html = String(rawHtml).trim();
+  if (!html) return "";
   const template = document.createElement("template");
-  template.innerHTML = rawHtml;
+  template.innerHTML = html;
   [...template.content.childNodes].forEach(sanitizeNode);
   return template.innerHTML;
+}
+
+// Alias ngắn gọn, dùng cho preview render (cả admin + shop đều gọi tên này)
+export function sanitizeHtml(rawHtml) {
+  return sanitizePastedHtml(rawHtml);
 }
 
 // Handler dùng thẳng cho onPaste của bất kỳ contentEditable nào:

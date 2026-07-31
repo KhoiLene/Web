@@ -4,8 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Đang tải sản phẩm... | Techtra</title>
-  <link rel="stylesheet" href="/components/san-pham/san-pham.css">
-  <link rel="stylesheet" href="/components/san-pham/review.css">
+  <meta name="description" content="Xem chi tiết sản phẩm tại Techtra — giá tốt, giao hàng toàn quốc.">
+  <link rel="stylesheet" href="../../components/san-pham/san-pham.css">
+  <link rel="stylesheet" href="../../components/san-pham/review.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
   <script type="importmap">
@@ -18,69 +19,133 @@
 </head>
 <body>
 
-  <!-- HEADER (load từ Header/header.html) -->
+  <!-- HEADER -->
   <div id="header-placeholder"></div>
 
-  <div class="state-message" id="loadingState">⌛ Đang tải sản phẩm...</div>
+  <!-- ─── SKELETON LOADER ───────────────────────────────────────────────── -->
+  <div id="skeletonLoader">
+    <div class="skeleton-grid">
+      <!-- Gallery skeleton -->
+      <div>
+        <div class="skeleton-box skel-main-img"></div>
+        <div class="skel-thumbs">
+          <div class="skeleton-box skel-thumb"></div>
+          <div class="skeleton-box skel-thumb"></div>
+          <div class="skeleton-box skel-thumb"></div>
+          <div class="skeleton-box skel-thumb"></div>
+        </div>
+      </div>
+      <!-- Info skeleton -->
+      <div>
+        <div class="skeleton-box skel-title"></div>
+        <div class="skeleton-box skel-subtitle"></div>
+        <div class="skeleton-box skel-price"></div>
+        <div class="skeleton-box skel-stock"></div>
+        <div class="skeleton-box skel-qty"></div>
+        <div class="skel-btn-row">
+          <div class="skeleton-box skel-btn"></div>
+          <div class="skeleton-box skel-btn"></div>
+        </div>
+        <div class="skeleton-box skel-branch"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── STATE MESSAGES ───────────────────────────────────────────────── -->
+  <div class="state-message" id="loadingState" style="display:none;"></div>
   <div class="state-message error" id="errorState" style="display:none;"></div>
 
+  <!-- ─── MAIN PRODUCT WRAPPER ─────────────────────────────────────────── -->
   <main class="product-wrapper" id="productWrapper" style="display:none;">
 
     <div class="breadcrumb" id="breadcrumb"></div>
 
     <div class="product-grid">
 
+      <!-- ─── GALLERY ───────────────────────────────────────────────────── -->
       <div class="gallery">
-        <div class="main-image-box">
-          <img id="mainImage" src="" alt="" style="display:none;">
+        <div class="main-image-box" id="mainImageBox" role="img" aria-label="Ảnh sản phẩm">
+          <img id="mainImage" src="" alt="" style="display:none;" draggable="false">
           <video id="mainVideo" controls style="display:none;"></video>
-          <button class="gallery-arrow gallery-arrow-left" id="galleryPrev">‹</button>
-          <button class="gallery-arrow gallery-arrow-right" id="galleryNext">›</button>
+          <button class="gallery-arrow gallery-arrow-left" id="galleryPrev" type="button" aria-label="Ảnh trước">&#8249;</button>
+          <button class="gallery-arrow gallery-arrow-right" id="galleryNext" type="button" aria-label="Ảnh tiếp">&#8250;</button>
         </div>
+
+        <!-- Dot indicators (mobile) -->
+        <div class="gallery-dots" id="galleryDots" aria-hidden="true"></div>
+
         <div class="thumbnails" id="thumbnails"></div>
 
-        <div class="tabs">
-          <button class="tab-btn active" data-tab="mota">Mô tả</button>
-          <button class="tab-btn" data-tab="danhgia">Đánh giá</button>
+        <!-- ─── TABS ──────────────────────────────────────────────────── -->
+        <div class="tabs" role="tablist">
+          <button class="tab-btn active" data-tab="mota" role="tab" aria-selected="true" type="button">Mô tả</button>
+          <button class="tab-btn" data-tab="danhgia" role="tab" aria-selected="false" type="button">Đánh giá</button>
         </div>
-        <div class="tab-content" id="tabMota">
+
+        <!-- Mô tả tab -->
+        <div class="tab-content" id="tabMota" role="tabpanel">
           <div class="mota-layout">
-            <div class="description-box">
+            <div class="description-box" id="descriptionBox">
               <div class="description-content" id="descriptionContent">Sản phẩm chưa có mô tả.</div>
             </div>
-            <button id="toggleDescriptionButton" class="toggle-description-btn" type="button">Xem thêm</button>
+            <button id="toggleDescriptionButton" class="toggle-description-btn" type="button">Xem thêm ▾</button>
           </div>
         </div>
-        <div class="tab-content" id="tabDanhgia" style="display:none;">
+
+        <!-- Đánh giá tab -->
+        <div class="tab-content" id="tabDanhgia" role="tabpanel" style="display:none;">
           <div class="review-summary" id="reviewSummary"></div>
 
-          <!--
-            Form đánh giá chỉ hiển thị khi người dùng bấm nút "Viết đánh giá".
-            Mặc định ẩn để tránh lộ giao diện "5 sao / ô nhập" khi sản phẩm
-            chưa có đánh giá nào.
-          -->
           <div id="reviewFormWrapper" style="display:none;">
             <button class="btn-outline" id="toggleReviewForm" type="button"
-              style="margin: 4px 0 14px;">
+              style="margin: 4px 0 14px; max-width: 280px;">
               <i class="fas fa-pen"></i> Viết đánh giá của bạn
             </button>
+
             <div class="review-form" id="reviewForm" style="display:none;">
               <h3>Đánh giá của bạn</h3>
+
+              <!-- Xác thực SĐT -->
+              <div class="form-row" id="phoneVerifyRow">
+                <label>Số điện thoại <span class="required">*</span></label>
+                <div class="otp-row">
+                  <input type="tel" id="reviewerPhone" placeholder="Nhập SĐT để xác thực" maxlength="15" />
+                  <button type="button" id="sendReviewOtpBtn" class="btn-mini">Gửi mã</button>
+                  <span id="phoneReviewVerifiedBadge" class="otp-badge" hidden>✓ Đã xác thực</span>
+                </div>
+                <div class="otp-input-wrap" id="reviewOtpWrap" hidden>
+                  <input type="text" id="reviewOtpCode" maxlength="6" placeholder="Mã 6 số" inputmode="numeric" />
+                  <button type="button" id="verifyReviewOtpBtn" class="btn-mini">Xác nhận</button>
+                  <small id="reviewOtpHint" class="otp-hint">Mã có hiệu lực 5 phút. Xem backend.log nếu chưa nhận được.</small>
+                </div>
+              </div>
+
+              <!-- Tên người dùng -->
               <div class="form-row">
-                <label for="reviewRating">Điểm của bạn</label>
-                <select id="reviewRating">
-                  <option value="5">5 - Tuyệt vời</option>
-                  <option value="4">4 - Rất tốt</option>
-                  <option value="3">3 - Trung bình</option>
-                  <option value="2">2 - Cần cải thiện</option>
-                  <option value="1">1 - Không hài lòng</option>
+                <label for="reviewerName">Tên hiển thị</label>
+                <input type="text" id="reviewerName" placeholder="Nhập tên hiển thị..." maxlength="80">
+              </div>
+
+              <!-- Interactive star picker -->
+              <div class="form-row">
+                <label>Điểm của bạn</label>
+                <div id="starPicker" aria-label="Chọn số sao" role="group"></div>
+                <!-- Hidden select giữ giá trị để submit -->
+                <select id="reviewRating" style="display:none;" aria-hidden="true">
+                  <option value="5">5</option>
+                  <option value="4">4</option>
+                  <option value="3">3</option>
+                  <option value="2">2</option>
+                  <option value="1">1</option>
                 </select>
               </div>
+
               <div class="form-row">
                 <label for="reviewText">Bình luận</label>
                 <textarea id="reviewText" rows="4" placeholder="Chia sẻ cảm nhận của bạn về sản phẩm..."></textarea>
               </div>
-              <button class="btn-primary" id="submitReview">Gửi đánh giá</button>
+
+              <button class="btn-primary" id="submitReview" type="button">Gửi đánh giá</button>
             </div>
           </div>
 
@@ -88,13 +153,19 @@
             <p class="empty-note">Chưa có đánh giá nào cho sản phẩm này.</p>
           </div>
         </div>
-      </div>
+      </div><!-- /.gallery -->
 
+      <!-- ─── INFO COLUMN ────────────────────────────────────────────── -->
       <div class="info">
         <h1 id="productName"></h1>
+
         <div class="rating-row">
-          <span class="stars">★★★★★</span>
+          <span class="stars" id="ratingStars">★★★★★</span>
           <span class="sku" id="productSku"></span>
+          <!-- Share button -->
+          <button class="share-btn" id="shareBtn" type="button" aria-label="Chia sẻ sản phẩm">
+            <i class="fas fa-share-nodes"></i> Chia sẻ
+          </button>
         </div>
 
         <div class="price-box">
@@ -110,9 +181,9 @@
         <div class="quantity-row">
           <span class="label">Số lượng</span>
           <div class="quantity-box">
-            <button id="qtyMinus">−</button>
-            <span id="qtyValue">1</span>
-            <button id="qtyPlus">+</button>
+            <button id="qtyMinus" type="button" aria-label="Giảm số lượng">−</button>
+            <span id="qtyValue" aria-live="polite">1</span>
+            <button id="qtyPlus" type="button" aria-label="Tăng số lượng">+</button>
           </div>
         </div>
 
@@ -121,8 +192,10 @@
         </div>
 
         <div class="cta-row">
-          <button class="btn-outline" id="btnAddCart"><i class="fas fa-cart-plus"></i> Thêm vào giỏ</button>
-          <button class="btn-primary" id="btnBuyNow">Mua ngay</button>
+          <button class="btn-outline" id="btnAddCart" type="button">
+            <i class="fas fa-cart-plus"></i> Thêm vào giỏ
+          </button>
+          <button class="btn-primary" id="btnBuyNow" type="button">Mua ngay</button>
         </div>
 
         <div class="branch-box">
@@ -132,27 +205,58 @@
             <p>Miễn phí vận chuyển cho đơn từ 500.000đ</p>
           </div>
         </div>
-      </div>
-    </div>
+      </div><!-- /.info -->
 
-    <aside id="relatedSection" class="related-aside below-shipping">
+    </div><!-- /.product-grid -->
+
+    <!-- ─── RELATED PRODUCTS ──────────────────────────────────────── -->
+    <aside id="relatedSection" class="related-aside below-shipping" style="display:none;">
       <div class="related-heading-row">
         <h2>Có thể bạn cũng thích</h2>
         <div class="related-controls">
-          <button id="relatedPrev" class="related-nav-btn">‹</button>
-          <button id="relatedNext" class="related-nav-btn">›</button>
+          <button id="relatedPrev" class="related-nav-btn" type="button" aria-label="Trước">&#8249;</button>
+          <button id="relatedNext" class="related-nav-btn" type="button" aria-label="Tiếp">&#8250;</button>
         </div>
       </div>
-      <div class="related-slider" id="relatedGrid"></div>
+      <div class="related-slider" id="relatedGrid" role="list"></div>
     </aside>
 
-  </main>
+  </main><!-- /#productWrapper -->
 
-  <!-- FOOTER (load từ Footer/footer.html) -->
+  <!-- ─── LIGHTBOX ─────────────────────────────────────────────────── -->
+  <div id="lightboxOverlay" role="dialog" aria-modal="true" aria-label="Xem ảnh lớn">
+    <button id="lightboxClose" class="lightbox-btn" type="button" aria-label="Đóng">✕</button>
+    <button id="lightboxPrev" class="lightbox-btn" type="button" aria-label="Ảnh trước">&#8249;</button>
+    <img id="lightboxImg" src="" alt="Ảnh sản phẩm phóng to" draggable="false">
+    <button id="lightboxNext" class="lightbox-btn" type="button" aria-label="Ảnh tiếp">&#8250;</button>
+  </div>
+
+  <!-- ─── STICKY BUY BAR ────────────────────────────────────────────── -->
+  <div id="stickyBar" role="complementary" aria-label="Thanh mua nhanh">
+    <div class="sticky-info">
+      <div id="stickyName"></div>
+      <div id="stickyPrice"></div>
+    </div>
+    <div class="sticky-btns">
+      <button class="btn-outline" id="stickyAddCart" type="button">
+        <i class="fas fa-cart-plus"></i> Thêm vào giỏ
+      </button>
+      <button class="btn-primary" id="stickyBuyNow" type="button">Mua ngay</button>
+    </div>
+  </div>
+
+  <!-- ─── BACK TO TOP ───────────────────────────────────────────────── -->
+  <button id="backToTop" type="button" aria-label="Lên đầu trang" title="Lên đầu trang">↑</button>
+
+  <!-- ─── TOAST CONTAINER ───────────────────────────────────────────── -->
+  <div id="toastContainer" aria-live="polite" aria-atomic="false"></div>
+
+  <!-- FOOTER -->
   <div id="footer-placeholder"></div>
 
-  <!-- Load header/footer partials (chạy trước san-pham.js để DOM sẵn sàng) -->
-  <script src="/components/tin-tuc/partials.js?v=3"></script>
-  <script type="module" src="/components/san-pham/san-pham.js?v=3"></script>
+  <!-- Scripts -->
+  <script src="../../components/header/partials.js?v=3"></script>
+  <script src="../../components/dang-ky/sendCode.js?v=1"></script>
+  <script type="module" src="../../components/san-pham/san-pham.js?v=10"></script>
 </body>
 </html>

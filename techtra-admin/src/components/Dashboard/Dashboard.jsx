@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import "./Dashboard.css";
-import { supabase } from "../../api";
+import { ordersApi, customersApi, dashboardApi, request } from "../../api";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell, Legend,
@@ -17,6 +17,10 @@ import {
 
 const fmtVND = (n) => Number(n || 0).toLocaleString("vi-VN") + "đ";
 const fmtNum = (n) => Number(n || 0).toLocaleString("vi-VN");
+const fmtDateVN = (iso) => {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
+};
 
 // ─── Màu sắt (đồng bộ với STATUS_META từ DonHang) ──────────────────
 const STATUS_META = {
@@ -48,33 +52,21 @@ export default function Dashboard() {
     setError("");
     try {
       const [oRes, cRes, vRes, iRes] = await Promise.all([
-        supabase
-          .from("v_orders_full")
-          .select("id, order_code, customer_id, customer_name, status, final_price, created_at, item_count, total_qty")
-          .order("created_at", { ascending: false })
-          .limit(1000),
-        supabase
-          .from("v_customer_loyalty")
-          .select("customer_id, customer_name, rank, ltv, total_orders, customer_since, last_purchase_at")
-          .order("ltv", { ascending: false })
-          .limit(1000),
-        supabase
-          .from("customer_vouchers")
-          .select("id, code, is_public, is_active, expires_at, used_at, customer_id, rank, discount_type, discount_value, min_order, max_discount")
-          .limit(1000),
-        supabase
-          .from("order_items")
-          .select("product_id, product_name, quantity, subtotal, order_id")
-          .limit(2000),
+        ordersApi.getAll(),
+        customersApi.getAll(),
+        request(
+          "GET",
+          "/db/customer_vouchers?select=id,code,is_public,is_active,expires_at,used_at,customer_id,rank,discount_type,discount_value,min_order,max_discount&limit=1000"
+        ),
+        request(
+          "GET",
+          "/db/order_items?select=product_id,product_name,quantity,subtotal,order_id&limit=2000"
+        ),
       ]);
 
-      if (oRes.error) throw new Error("orders: " + oRes.error.message);
-      if (cRes.error) throw new Error("customers: " + cRes.error.message);
-      if (vRes.error) throw new Error("vouchers: " + vRes.error.message);
-      if (iRes.error) throw new Error("order_items: " + iRes.error.message);
-
       setOrders(oRes.data || []);
-      setCustomers(cRes.data || []);
+      const customersData = Array.isArray(cRes) ? cRes : (cRes.data || []);
+      setCustomers(customersData);
       setVouchers(vRes.data || []);
       setOrderItems(iRes.data || []);
     } catch (err) {
@@ -88,8 +80,10 @@ export default function Dashboard() {
 
   // ─── Tính toán KPIs ────────────────────────────────────────────
   const kpis = useMemo(() => {
-    const doneOrders = orders.filter((o) => o.status === "done");
+    const doneOrders = orders.filter((o) => String(o.status).toLowerCase() === "done");
+    const cancelledOrders = orders.filter((o) => String(o.status).toLowerCase() === "cancelled");
     const totalRevenue = doneOrders.reduce((s, o) => s + Number(o.final_price || 0), 0);
+    const cancelledRevenue = cancelledOrders.reduce((s, o) => s + Number(o.final_price || 0), 0);
 
     // So sánh với 30 ngày trước
     const now = new Date();
@@ -120,6 +114,7 @@ export default function Dashboard() {
 
     return {
       totalRevenue,
+      cancelledRevenue,
       revGrowth,
       totalOrders: orders.length,
       todayOrders: todayOrders.length,
@@ -258,6 +253,14 @@ export default function Dashboard() {
               label="Voucher đang active"
               value={fmtNum(kpis.activeVouchers)}
               sub={`Tổng ${vouchers.length} voucher trong hệ thống`}
+            />
+            <KPICard
+              icon="fa-times-circle"
+              color="#b91c1c"
+              bg="#fee2e2"
+              label="Tổng giá trị hủy"
+              value={fmtVND(kpis.cancelledRevenue)}
+              sub={`${fmtNum(orders.filter((o) => String(o.status).toLowerCase() === "cancelled").length)} đơn đã hủy`}
             />
           </div>
 
@@ -413,7 +416,7 @@ export default function Dashboard() {
                           </span>
                         </td>
                         <td style={{ fontSize: 12, color: "#6b7280" }}>
-                          {new Date(o.created_at).toLocaleString("vi-VN")}
+                          {fmtDateVN(o.created_at)}
                         </td>
                       </tr>
                     );

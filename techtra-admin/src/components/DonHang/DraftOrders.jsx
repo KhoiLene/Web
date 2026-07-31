@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import "./DonHang.css";
-import { supabase } from "../../api";
+import { ordersApi } from "../../api";
 import OrderTable from "./OrderTable";
 
 const FILTERS = [
@@ -21,13 +21,8 @@ export default function DraftOrders() {
     setLoading(true);
     setError("");
     try {
-      const { data, error: e2 } = await supabase
-        .from("v_orders_full")
-        .select("*")
-        .eq("status", "pending")
-        .order("created_at", { ascending: false });
-      if (e2) throw new Error(e2.message);
-      setOrders(data || []);
+      const r = await ordersApi.getAll({ status: "pending" });
+      setOrders(r.data || []);
     } catch (err) {
       setError(err.message);
     } finally {

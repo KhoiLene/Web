@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Về Techtra | Techtra Shop</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="../../components/header/header.css">
+    <link rel="stylesheet" href="../../components/footer/footer.css">
+    <link rel="stylesheet" href="./ve-techtra-moi.css?v=12">
+    <script>
+      // Banner debug ngay khi HTML load — giúp biết file mới đã serve
+      console.log("[ve-techtra-moi] HTML loaded — version v=12", new Date().toISOString());
+      console.log("[ve-techtra-moi] URL:", window.location.href);
+      console.log("[ve-techtra-moi] Slug:", new URLSearchParams(location.search).get("slug") || "(none)");
+    </script>
+</head>
+<body>
+
+  <div id="header-placeholder"></div>
+
+  <!--
+    Pattern giống "Xem trước" trong AboutContentTab:
+    Chỉ render HTML thuần. Header + footer ở ngoài khung.
+  -->
+  <main class="about-page">
+    <div class="state-message" id="loadingState">
+      <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+      Đang tải nội dung…
+    </div>
+    <div class="state-message error" id="errorState" hidden></div>
+
+    <article class="about-content prose" id="aboutContent">
+      <!-- HTML render từ API — không có form, không có sidebar, không có gì khác -->
+    </article>
+
+    <div class="empty-state" id="emptyState" hidden>
+      <i class="fa-regular fa-folder-open" aria-hidden="true"></i>
+      <h3>Chưa có nội dung</h3>
+      <p>Mục này chưa được cập nhật.</p>
+      <button type="button" id="debugBtn" style="margin-top:12px;padding:6px 12px;background:var(--primary);color:white;border-radius:8px;font-size:12px;">
+        <i class="fa-solid fa-bug"></i> Test API trực tiếp
+      </button>
+      <pre id="debugLog" style="display:none;margin-top:12px;padding:12px;background:var(--bg-secondary);border-radius:8px;font-size:11px;text-align:left;max-height:300px;overflow:auto;color:var(--text-secondary);"></pre>
+    </div>
+  </main>
+
+  <div id="footer-placeholder"></div>
+
+  <script src="../../components/header/partials.js?v=12"></script>
+  <script type="module" src="./ve-techtra-moi.js?v=12"></script>
+</body>
+</html>

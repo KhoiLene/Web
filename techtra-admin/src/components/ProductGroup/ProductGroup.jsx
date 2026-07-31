@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import "./ProductGroup.css";
 import CreateProductGroup from "./CreateProductGroup.jsx";
 import { productGroupsApi, productsApi } from "../../api";
-import { supabase } from "../../api";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 const fmtVND = (n) => Number(n || 0).toLocaleString("vi-VN") + "đ";
@@ -51,13 +50,10 @@ export default function ProductGroup() {
   const fetchProductCounts = useCallback(async () => {
     setCountsLoading(true);
     try {
-      const { data: products, error: pErr } = await supabase
-        .from("products")
-        .select("group_id");
-      if (pErr) throw new Error(pErr.message);
-
+      const r = await productsApi.getAll({ includeDeleted: true });
+      const products = r.data || [];
       const counts = {};
-      (products || []).forEach((p) => {
+      products.forEach((p) => {
         if (p.group_id == null) return;
         counts[p.group_id] = (counts[p.group_id] || 0) + 1;
       });

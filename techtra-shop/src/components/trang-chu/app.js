@@ -21,6 +21,106 @@ function bootApp() {
         .catch(() => loadHomepageData()); // vẫn gọi, bên trong sẽ fallback
 }
 
+// Lấy 6 bài viết "nhóm tin tức" được publish gần nhất từ bảng `posts`
+// để đưa lên phần "Góc chia sẻ" trên trang chủ.
+// - status = 'published'
+// - Sắp xếp theo published_at desc, fallback created_at desc
+// - Join với news_categories để biết tên nhóm
+// Trả về mảng đã chuẩn hoá đúng shape mà renderBlogs() đang dùng
+// (id, title, desc, author, image, imageUrl, date, link).
+// Dynamic import api-service (singleton) để không phụ thuộc window.supabase
+let __apiServicePromise = null;
+function getApiService() {
+    if (!__apiServicePromise) {
+        __apiServicePromise = import("../api-service/api.js");
+    }
+    return __apiServicePromise;
+}
+
+async function loadLatestBlogPosts(limit = 6) {
+    try {
+        const { request } = await getApiService();
+        // Backend không hỗ trợ join kiểu PostgREST → tách 2 query
+        const params = new URLSearchParams({
+            select: "id,title,slug,summary,excerpt_html,thumbnail,thumbnail_source,author_id,published_at,created_at,category_id",
+            status: "eq.published",
+            order: "published_at.desc",
+            limit: String(limit),
+        });
+        let list = (await request("GET", `/db/posts?${params.toString()}`)) || [];
+
+        // Nếu không có bài nào sort theo published_at (toàn NULL), fallback created_at
+        if (list.length === 0) {
+            const fallback = new URLSearchParams({
+                select: "id,title,slug,summary,excerpt_html,thumbnail,thumbnail_source,author_id,published_at,created_at,category_id",
+                status: "eq.published",
+                order: "created_at.desc",
+                limit: String(limit),
+            });
+            list = (await request("GET", `/db/posts?${fallback.toString()}`)) || [];
+        }
+
+        // Lấy tên nhóm nếu có category_id
+        const catIds = Array.from(new Set(list.map((r) => r.category_id).filter(Boolean)));
+        let catMap = {};
+        if (catIds.length) {
+            const inList = `in.(${catIds.join(",")})`;
+            const cats = (await request(
+                "GET",
+                `/db/news_categories?select=id,name,slug&id=${inList}`
+            )) || [];
+            catMap = Object.fromEntries(cats.map((c) => [c.id, c]));
+        }
+        const enriched = list.map((r) => ({ ...r, news_categories: catMap[r.category_id] || null }));
+        return mapPostsToBlogShape(enriched);
+    } catch (err) {
+        console.warn("[blog] loadLatestBlogPosts error:", err);
+        return [];
+    }
+}
+
+// Chuẩn hoá row `posts` → shape renderBlogs() mong đợi
+function mapPostsToBlogShape(rows) {
+    return rows.map((r) => {
+        const d = r.published_at || r.created_at;
+        let dateStr = "";
+        if (d) {
+            const dt = new Date(d);
+            dateStr = `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`;
+        }
+        // Ảnh: ưu tiên thumbnail upload; nếu rỗng thì dùng thumbnail_source
+        const img = r.thumbnail || r.thumbnail_source || "";
+        // Link: trỏ về trang chi tiết tin tức (nếu có slug), kèm query category
+        const cat = r.news_categories;
+        let link = "#";
+        if (r.slug) {
+            const params = new URLSearchParams();
+            params.set("slug", r.slug);
+            if (cat?.slug) params.set("cat", cat.slug);
+            link = `/components/tin-tuc/tin-tuc.html?${params.toString()}`;
+        }
+        return {
+            id: r.id,
+            title: r.title || "",
+            desc: r.summary || stripHtml(r.excerpt_html || "").slice(0, 180) || "",
+            author: "Admin",
+            image: img,
+            imageUrl: img,
+            date: dateStr,
+            link,
+            categoryName: cat?.name || "",
+        };
+    });
+}
+
+// Loại bỏ thẻ HTML để lấy text thuần cho đoạn mô tả ngắn
+function stripHtml(html) {
+    if (!html) return "";
+    const div = document.createElement("div");
+    div.innerHTML = html;
+    return (div.textContent || div.innerText || "").replace(/\s+/g, " ").trim();
+}
+
 function waitForHomepageApi(timeoutMs = 3000) {
     return new Promise((resolve) => {
         const start = Date.now();
@@ -96,7 +196,11 @@ async function loadHomepageData() {
         flashSale: FALLBACK.flashSale,
         blogs: FALLBACK.blogs,
     };
-    // Đảm bảo luôn có data.config để code phía dưới không crash
+
+    // ── "Góc chia sẻ" lấy từ bảng `posts` (nhóm tin tức) — 6 bài mới nhất ──
+    // Ghi đè data.blogs bằng kết quả từ posts; nếu lỗi/rỗng → giữ blogs cũ.
+    const latestPosts = await loadLatestBlogPosts(6);
+    if (latestPosts.length) data.blogs = latestPosts;
     if (!data.config) data.config = {};
     if (!data.config.background) data.config.background = { type: "color", color: "#6a11cb" };
     if (!data.config.hero) data.config.hero = { enabled: false };
@@ -141,6 +245,20 @@ async function loadHomepageData() {
         hideSection("categories-section-el");
     }
 
+    // 5.1 Slider text (chữ chạy từ product_groups.slider_text)
+    if (data.config.sections.sliderText && data.sliderTexts && data.sliderTexts.length) {
+        renderSliderText(data.sliderTexts);
+    } else {
+        hideSection("slider-text-section-el");
+    }
+
+    // 5.2 Intro section (giới thiệu product-group)
+    if (data.config.sections.intro && data.introItems && data.introItems.length) {
+        renderIntroSection(data.introItems);
+    } else {
+        hideSection("intro-section-el");
+    }
+
     // 6. Flash sale
     console.log("[homepage] flashSale =", data.flashSale);
     if (data.config.sections.flashSale) {
@@ -161,6 +279,13 @@ async function loadHomepageData() {
         renderPromoBanners(data.promos || []);
     } else {
         hideSection("promotional-banners-section");
+    }
+
+    // 7.5 Best sellers — lấy từ data.bestSellers (đã query trong homepageApi.getAll)
+    if (data.config.sections.bestSellers) {
+        renderBestSellersSection(data.bestSellers || [], data.categories || []);
+    } else {
+        hideSection("best-sellers-section-el");
     }
 
     // 8. Blog
@@ -286,7 +411,7 @@ function renderPopupAnnouncement(popup) {
                 <button type="button" class="hp-popup-btn hp-popup-btn-ghost" id="hp-popup-dont-show">Không hiển thị lại</button>
                 <button type="button" class="hp-popup-btn hp-popup-btn-primary" id="hp-popup-close">Đóng</button>
             </div>
-        </div>
+        </div> 
     `;
 
     document.body.appendChild(overlay);
@@ -422,12 +547,23 @@ function renderBanners(banners) {
         const activeClass = index === 0 ? 'active' : '';
         // imageUrl được map từ API; fallback sang image nếu backend cũ
         const imgUrl = banner.imageUrl || banner.image || "";
+        // Nếu không có ảnh nhưng có icon FontAwesome → dùng icon làm visual
+        const hasIcon = banner.icon && /^(fas|far|fab|fa)\s+/.test(banner.icon);
+        const bgStyle = imgUrl
+            ? `background-image: linear-gradient(rgba(255,255,255,0.7), rgba(255,255,255,0.8)), url('${imgUrl}')`
+            : (hasIcon
+                ? `background: linear-gradient(135deg, #f0f7eb 0%, #e8f0d8 100%);`
+                : '');
+        const iconHTML = (!imgUrl && hasIcon)
+            ? `<div class="slide-icon-fa"><i class="${banner.icon}" aria-hidden="true"></i></div>`
+            : '';
         // Title có thể chứa HTML (cho phép in đậm), nên KHÔNG escape title
         const slideHTML = `
             <div class="slide ${activeClass}" data-slide-id="${banner.id}">
-                <div class="slide-bg" style="background-image: linear-gradient(rgba(255,255,255,0.7), rgba(255,255,255,0.8)), url('${imgUrl}')"></div>
+                <div class="slide-bg" style="${bgStyle}"></div>
                 <div class="container">
                     <div class="slide-content">
+                        ${iconHTML}
                         ${banner.badge ? `<span class="slide-badge">${escapeHtml(banner.badge)}</span>` : ''}
                         <h2 class="slide-title">${banner.title || ''}</h2>
                         <p class="slide-desc">${escapeHtml(banner.desc || '')}</p>
@@ -507,15 +643,68 @@ function renderCategories(categories) {
     container.innerHTML = '';
 
     categories.forEach(cat => {
+        // imageUrl nếu là URL → render <img>; fallback FontAwesome icon
+        let visualHTML;
+        if (cat.imageUrl) {
+            visualHTML = `<img class="category-img" src="${cat.imageUrl}" alt="${escapeHtml(cat.name)}" loading="lazy" onerror="this.style.display='none'">`;
+        } else {
+            visualHTML = `<i class="fas fa-folder category-icon-fa" aria-hidden="true"></i>`;
+        }
+        // Card chữ nhật: ảnh trái + text phải (name + description)
         const catHTML = `
             <a href="${cat.link || '#'}" class="category-card" data-cat-id="${cat.id}">
                 <div class="category-img-wrapper">
-                    <img class="category-img" src="${cat.imageUrl || cat.image}" alt="${escapeHtml(cat.name)}" loading="lazy">
+                    ${visualHTML}
                 </div>
-                <span class="category-name">${escapeHtml(cat.name)}</span>
+                <div class="category-info">
+                    <h3 class="category-name">${escapeHtml(cat.name)}</h3>
+                    ${cat.description ? `<p class="category-desc">${escapeHtml(cat.description)}</p>` : ''}
+                </div>
             </a>
         `;
         container.insertAdjacentHTML('beforeend', catHTML);
+    });
+}
+
+// Render slider text (chữ chạy ngang — slider_text từ product_groups)
+function renderSliderText(texts) {
+    const section = document.getElementById('slider-text-section-el');
+    const track = document.getElementById('slider-text-track-el');
+    if (!section || !track) return;
+    if (!texts || !texts.length) return;
+    section.style.display = 'block';
+    // Lặp lại 2 lần để marquee chạy mượt, tạo vòng lặp liên tục
+    const items = [...texts, ...texts];
+    track.innerHTML = items.map((t) => `<span class="slider-text-item">${escapeHtml(t)}</span>`).join('');
+}
+
+// Render phần giới thiệu product-groups (intro_title + intro_subtitle + intro_image_url)
+// Mỗi intro item: text bên trái / ảnh bên phải — đảo chiều cho item chẵn (zigzag)
+function renderIntroSection(items) {
+    const section = document.getElementById('intro-section-el');
+    const list = document.getElementById('intro-list-el');
+    if (!section || !list) return;
+    if (!items || !items.length) return;
+    section.style.display = 'block';
+    list.innerHTML = '';
+    items.forEach((it) => {
+        const mediaHTML = it.imageUrl
+            ? `<div class="intro-item__media" style="background-image:url('${escapeHtml(it.imageUrl)}')"></div>`
+            : `<div class="intro-item__media intro-item__media--placeholder"><i class="fas fa-image"></i></div>`;
+        const itemHTML = `
+            <article class="intro-item">
+                <div class="intro-item__text">
+                    ${it.name ? `<span class="intro-item__eyebrow">${escapeHtml(it.name)}</span>` : ''}
+                    ${it.title ? `<h3 class="intro-item__title">${escapeHtml(it.title)}</h3>` : ''}
+                    ${it.subtitle ? `<p class="intro-item__subtitle">${escapeHtml(it.subtitle)}</p>` : ''}
+                    <a href="${it.link || '#'}" class="intro-item__cta">
+                        Khám phá <i class="fa-solid fa-arrow-right"></i>
+                    </a>
+                </div>
+                ${mediaHTML}
+            </article>
+        `;
+        list.insertAdjacentHTML('beforeend', itemHTML);
     });
 }
 
@@ -595,32 +784,88 @@ function escapeAttr(s) {
     return String(s || "").replaceAll("'", "\\'").replaceAll('"', '&quot;');
 }
 
-// Render Sản phẩm bán chạy nhất
+// Render Sản phẩm bán chạy nhất — section wrapper (gồm tabs + grid)
+function renderBestSellersSection(products, categories) {
+    const section = document.getElementById('best-sellers-section-el');
+    if (!section) return;
+
+    const tabsNav = document.getElementById('best-sellers-tabs-nav');
+    const gridContainer = document.getElementById('best-sellers-grid-container');
+
+    // Nếu chưa có sản phẩm → ẩn section, không vẽ tab rỗng
+    if (!products || products.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    // Phân biệt nguồn dữ liệu: "sales" (đã có đơn bán) | "fallback" (chưa có → sản phẩm cũ nhất)
+    const isFallback = products.every((p) => p.source === "fallback");
+    const titleEl = section.querySelector('.section-title');
+    const subtitleEl = section.querySelector('.section-subtitle');
+    if (isFallback) {
+        if (titleEl) titleEl.textContent = 'Sản phẩm nổi bật';
+        if (subtitleEl) subtitleEl.textContent = 'Những sản phẩm được hàng triệu người Việt tin dùng';
+    } else {
+        if (titleEl) titleEl.textContent = 'Sản phẩm bán chạy nhất';
+        if (subtitleEl) subtitleEl.textContent = 'Những sản phẩm được hàng triệu người Việt tin dùng';
+    }
+
+    // Build tabs: "Tất cả" + các nhóm CHA có sản phẩm bán chạy
+    const tabList = [{ id: 'all', name: 'Tất cả' }];
+    const usedSlugs = new Set(products.map((p) => p.category));
+    for (const cat of (categories || [])) {
+        if (usedSlugs.has(cat.name) || usedSlugs.has(cat.slug) || usedSlugs.has(String(cat.id))) {
+            tabList.push({ id: cat.slug || cat.name || cat.id, name: cat.name });
+        }
+    }
+
+    // Render tabs
+    if (tabsNav) {
+        tabsNav.innerHTML = tabList.map((t, i) =>
+            `<button class="tab-btn${i === 0 ? ' active' : ''}" data-tab-id="${escapeAttr(t.id)}">${escapeHtml(t.name)}</button>`
+        ).join('');
+
+        tabsNav.querySelectorAll('.tab-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                tabsNav.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+                btn.classList.add('active');
+                renderBestSellers(products, btn.getAttribute('data-tab-id'));
+            });
+        });
+    }
+
+    // Initial render: tab "Tất cả"
+    renderBestSellers(products, 'all');
+}
+
+// Render grid sản phẩm cho 1 tab
 function renderBestSellers(products, categoryFilter) {
     const container = document.getElementById('best-sellers-grid-container');
     if (!container) return;
-    
+
     // Tạo cấu trúc Grid
     container.innerHTML = '<div class="products-grid"></div>';
     const gridEl = container.querySelector('.products-grid');
 
-    // Lọc theo danh mục
-    const filteredProducts = categoryFilter === 'all' 
-        ? products 
-        : products.filter(p => p.category === categoryFilter);
+    // Lọc theo danh mục (slug hoặc id)
+    const filteredProducts = categoryFilter === 'all'
+        ? products
+        : products.filter((p) => p.category === categoryFilter);
 
     if (filteredProducts.length === 0) {
         gridEl.innerHTML = `<p style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-secondary);">Chưa có sản phẩm thuộc danh mục này.</p>`;
         return;
     }
 
-    filteredProducts.forEach(prod => {
-        const discountBadge = prod.oldPrice ? `<span class="product-badge sale">-${Math.round((prod.oldPrice - prod.price) / prod.oldPrice * 100)}%</span>` : '';
-        const oldPriceHTML = prod.oldPrice ? `<span class="product-old-price">${formatPrice(prod.oldPrice)}</span>` : '';
-        
-        // Map category ID to display text for card
-        const catMap = { skincare: "Chăm sóc da", haircare: "Chăm sóc tóc", makeup: "Trang điểm" };
-        const categoryText = catMap[prod.category] || "Mỹ phẩm";
+    filteredProducts.forEach((prod) => {
+        const discountBadge = prod.oldPrice
+            ? `<span class="product-badge sale">-${Math.round((prod.oldPrice - prod.price) / prod.oldPrice * 100)}%</span>`
+            : '';
+        const oldPriceHTML = prod.oldPrice
+            ? `<span class="product-old-price">${formatPrice(prod.oldPrice)}</span>`
+            : '';
+        const productLink = prod.link || '#';
+        const categoryText = prod.categoryName || 'Mỹ phẩm';
 
         const prodHTML = `
             <div class="product-card" data-product-id="${prod.id}">
@@ -631,12 +876,12 @@ function renderBestSellers(products, categoryFilter) {
                 <button class="product-wishlist" aria-label="Thêm vào yêu thích" onclick="toggleWishlist(${prod.id}, this)">
                     <i class="fa-regular fa-heart"></i>
                 </button>
-                <a href="#" class="product-img-link">
-                    <img class="product-img" src="${prod.image}" alt="${prod.title}" loading="lazy">
+                <a href="${productLink}" class="product-img-link">
+                    <img class="product-img" src="${escapeAttr(prod.image)}" alt="${escapeAttr(prod.title)}" loading="lazy">
                 </a>
                 <div class="product-info">
-                    <span class="product-category">${categoryText}</span>
-                    <h3 class="product-title"><a href="#">${prod.title}</a></h3>
+                    <span class="product-category">${escapeHtml(categoryText)}</span>
+                    <h3 class="product-title"><a href="${productLink}">${escapeHtml(prod.title)}</a></h3>
                     <div class="product-rating">
                         <i class="fa-solid fa-star"></i>
                         <span>${prod.rating}</span>
@@ -646,7 +891,7 @@ function renderBestSellers(products, categoryFilter) {
                         <span class="product-price">${formatPrice(prod.price)}</span>
                         ${oldPriceHTML}
                     </div>
-                    <button class="btn btn-primary btn-add-cart" onclick="addToCart(${prod.id}, '${prod.title}', ${prod.price}, '${prod.image}')">
+                    <button class="btn btn-primary btn-add-cart" onclick="addToCart(${prod.id}, '${escapeAttr(prod.title)}', ${prod.price}, '${escapeAttr(prod.image)}')">
                         <i class="fa-solid fa-cart-plus"></i> Thêm vào giỏ
                     </button>
                 </div>
@@ -671,6 +916,9 @@ function renderBlogs(blogs) {
             dateStr = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
         }
         const img = blog.image || blog.imageUrl || "";
+        const catBadge = blog.categoryName
+            ? `<span class="blog-category-badge"><i class="fa-solid fa-folder-open"></i> ${escapeHtml(blog.categoryName)}</span>`
+            : '';
         const blogHTML = `
             <article class="blog-card" data-blog-id="${blog.id}">
                 <a href="${blog.link || '#'}" class="blog-img-link">
@@ -678,6 +926,7 @@ function renderBlogs(blogs) {
                 </a>
                 <div class="blog-content">
                     <div class="blog-meta">
+                        ${catBadge}
                         <span><i class="fa-regular fa-calendar-days"></i> ${dateStr}</span>
                         <span><i class="fa-regular fa-user"></i> ${escapeHtml(blog.author || 'Admin')}</span>
                     </div>
@@ -748,39 +997,8 @@ function initUIComponents() {
         if (cartClose) cartClose.addEventListener('click', toggleCart);
     }
 
-    // Best Sellers Tabs Interaction
-    const tabBtns = document.querySelectorAll('#tab-navigation-container .tab-btn');
-    tabBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            // Remove active class from all
-            tabBtns.forEach(b => b.classList.remove('active'));
-            // Add to target
-            btn.classList.add('active');
-            // Filter products
-            const tabId = btn.getAttribute('data-tab-id');
-            
-            // Giả lập trạng thái Loading bằng Shimmer Skeletons
-            const container = document.getElementById('best-sellers-grid-container');
-            container.innerHTML = `
-                <div class="products-grid">
-                    ${Array(4).fill(`
-                        <div class="product-card">
-                            <div class="product-img-link skeleton"><div class="skeleton-image"></div></div>
-                            <div class="product-info">
-                                <div class="skeleton skeleton-text" style="width: 40%; height: 14px;"></div>
-                                <div class="skeleton skeleton-text title"></div>
-                                <div class="skeleton skeleton-text price" style="margin-top: 10px;"></div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-
-            setTimeout(() => {
-                renderBestSellers(mockBestSellers, tabId);
-            }, 300);
-        });
-    });
+    // LƯU Ý: Best Sellers tabs đã được wire trong renderBestSellersSection()
+    // khi section được render — không cần handler ở đây nữa.
 
     // Flash Sale Countdown Timer
     startCountdown();

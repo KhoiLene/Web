@@ -1286,7 +1286,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import "./ProductManagement.css";
 import CreateProduct from "./CreateProduct.jsx";
-import { productsApi, productGroupsApi, priceListApi, supabase } from "../../api";
+import { productsApi, productGroupsApi, priceListApi } from "../../api";
 
 
 // 3 tab:
@@ -1435,7 +1435,6 @@ export default function ProductManagement() {
 
   // ─── Phục hồi 1 sản phẩm (tab Đã xóa) ───────────────────────────────────
   const handleRestore = async (id, name) => {
-    if (!window.confirm(`Phục hồi sản phẩm "${name}"?\n\nSản phẩm sẽ được chuyển về trạng thái "Trên kệ" (is_active = true, status = active).`)) return;
     try {
       await productsApi.restore(id);
       fetchProducts();
@@ -1560,8 +1559,10 @@ export default function ProductManagement() {
       };
     });
 
-    const { error } = await supabase.from("products").insert(toInsert);
-    if (error) throw new Error(error.message);
+    // Generic endpoint không hỗ trợ bulk insert — gọi từng dòng.
+    for (const row of toInsert) {
+      await productsApi.create(row);
+    }
   }
 
   // ─── Sau khi lưu form tạo/sửa ───────────────────────────────────────────
@@ -1785,7 +1786,8 @@ export default function ProductManagement() {
                     <input type="checkbox" checked={allSelected} onChange={toggleAll} />
                   </th>
                   <th style={{ padding: "12px 16px", textAlign: "left",   fontWeight: "600", color: "#374151" }}>Sản phẩm</th>
-                  <th style={{ padding: "12px 16px", textAlign: "left",   fontWeight: "600", color: "#374151" }}>Nhóm</th>
+                  <th style={{ padding: "12px 16px", textAlign: "left",   fontWeight: "600", color: "#374151" }}>Danh mục</th>
+                  <th style={{ padding: "12px 16px", textAlign: "left",   fontWeight: "600", color: "#374151" }}>Nhóm SP</th>
                   <th style={{ padding: "12px 16px", textAlign: "right",  fontWeight: "600", color: "#374151" }}>Giá</th>
                   <th style={{ padding: "12px 16px", textAlign: "right",  fontWeight: "600", color: "#374151" }}>Tồn kho</th>
                   <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "600", color: "#374151" }}>Trạng thái</th>
@@ -1828,6 +1830,9 @@ export default function ProductManagement() {
                           {getGroupCode(p.group_id)}
                         </div>
                       )}
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      {p.group_name || "--"}
                     </td>
                     <td style={{ padding: "12px 16px", textAlign: "right" }}>
                       {(() => {
@@ -1899,7 +1904,7 @@ export default function ProductManagement() {
                           </button>
                         </div>
                       ) : (
-                        <div style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                        <div style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                           <button
                             onClick={() => handleToggleActive(p)}
                             style={{

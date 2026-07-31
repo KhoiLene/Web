@@ -2,9 +2,10 @@
 // tin-tuc-theo-nhom.js — Trang lọc bài viết theo nhóm con (public)
 // Đọc ?slug=... từ URL → tìm news_categories theo slug → query posts filter
 // category_id + status=published, có search + filter post_type + phân trang
+// Backend Express /api/db/* cung cấp PostgREST-style query.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { supabase } from "../../components/api-service/api.js";
+import { request } from "../../components/api-service/api.js";
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const state = {
@@ -199,13 +200,11 @@ async function loadCategoryAndPosts(slug) {
     if (!slug) throw new Error("Thiếu slug nhóm trong URL");
 
     // 1) Tìm nhóm theo slug
-    const { data: cat, error: catErr } = await supabase
-      .from("news_categories")
-      .select("id, name, slug, description, icon, parent_id")
-      .eq("slug", slug)
-      .eq("is_active", true)
-      .maybeSingle();
-    if (catErr) throw new Error(catErr.message);
+    const catR = await request(
+      "GET",
+      `/db/news_categories?select=id,name,slug,description,icon,parent_id&slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&limit=1`
+    );
+    const cat = (catR.data || [])[0];
     if (!cat) {
       $error.innerHTML = `<i class="fas fa-exclamation-circle"></i> Không tìm thấy nhóm "<code>${esc(slug)}</code>".`;
       showState("error");
@@ -215,26 +214,23 @@ async function loadCategoryAndPosts(slug) {
 
     // 2) Tìm root nếu category là con
     if (cat.parent_id) {
-      const { data: root } = await supabase
-        .from("news_categories")
-        .select("id, name, slug")
-        .eq("id", cat.parent_id)
-        .maybeSingle();
-      state.rootCategory = root;
+      const rootR = await request(
+        "GET",
+        `/db/news_categories?select=id,name,slug&id=eq.${cat.parent_id}&limit=1`
+      );
+      state.rootCategory = (rootR.data || [])[0] || null;
     }
     renderHeader();
 
     // 3) Query bài viết thuộc nhóm (nếu là root mà không có con → không có bài nào thuộc root trực tiếp)
     // Cho phép cả root lẫn child: lấy bài có category_id = cat.id
-    const { data: posts, error: pErr } = await supabase
-      .from("posts")
-      .select("id, slug, title, summary, site_name, source_url, thumbnail, thumbnail_source, post_type, file_name, file_size, file_url, published_at, created_at, category_id")
-      .eq("status", "published")
-      .eq("category_id", cat.id)
-      .order("published_at", { ascending: false });
+    const postSelect = "id,slug,title,summary,site_name,source_url,thumbnail,thumbnail_source,post_type,file_name,file_size,file_url,published_at,created_at,category_id";
+    const postsR = await request(
+      "GET",
+      `/db/posts?select=${postSelect}&status=eq.published&category_id=eq.${cat.id}&order=published_at.desc`
+    );
 
-    if (pErr) throw new Error(pErr.message);
-    state.all = posts || [];
+    state.all = postsR.data || [];
     render();
   } catch (err) {
     console.error("[tin-tuc-theo-nhom] error:", err);

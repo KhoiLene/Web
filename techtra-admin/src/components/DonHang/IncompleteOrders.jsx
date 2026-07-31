@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import "./DonHang.css";
-import { supabase } from "../../api";
+import { ordersApi } from "../../api";
 import OrderTable from "./OrderTable";
 
 const FILTERS = [
@@ -25,13 +25,11 @@ export default function IncompleteOrders() {
     setLoading(true);
     setError("");
     try {
-      const { data, error: e2 } = await supabase
-        .from("v_orders_full")
-        .select("*")
-        .in("status", ["pending", "confirmed", "shipping"])
-        .order("created_at", { ascending: false });
-      if (e2) throw new Error(e2.message);
-      setOrders(data || []);
+      const r = await ordersApi.getAll();
+      const list = (r.data || []).filter((o) =>
+        ["pending", "confirmed", "shipping"].includes(String(o.status || "").toLowerCase())
+      );
+      setOrders(list);
     } catch (err) {
       setError(err.message);
     } finally {

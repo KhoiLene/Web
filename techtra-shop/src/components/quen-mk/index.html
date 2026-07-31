@@ -26,13 +26,13 @@
             <span class="auth-visual__eyebrow">Hỗ trợ tài khoản</span>
             <h1 class="auth-visual__title">Quên mật khẩu? <span>Đừng lo lắng</span> — chúng tôi giúp bạn</h1>
             <p class="auth-visual__desc">
-                Chỉ cần nhập email đã đăng ký, hệ thống sẽ gửi cho bạn đường dẫn
-                để đặt lại mật khẩu nhanh chóng và an toàn.
+                Chỉ cần nhập email đã đăng ký, hệ thống sẽ gửi cho bạn mã OTP
+                6 số qua email để đặt lại mật khẩu nhanh chóng và an toàn.
             </p>
 
             <ul class="auth-visual__perks">
                 <li class="auth-perk"><i class="fa-solid fa-shield-halved"></i> Bảo mật 2 lớp với mã OTP gửi qua email</li>
-                <li class="auth-perk"><i class="fa-solid fa-clock"></i> Đường dẫn có hiệu lực trong 15 phút</li>
+                <li class="auth-perk"><i class="fa-solid fa-clock"></i> Mã OTP có hiệu lực trong 5 phút</li>
                 <li class="auth-perk"><i class="fa-solid fa-headset"></i> Hỗ trợ 24/7 qua hotline 1800.6464.90</li>
             </ul>
         </div>
@@ -74,7 +74,7 @@
 
             <button type="submit" class="btn btn-primary" id="submitBtn">
                 <i class="fa-solid fa-paper-plane"></i>
-                <span>Gửi yêu cầu đặt lại mật khẩu</span>
+                <span>Gửi mã OTP qua email</span>
             </button>
 
             <div class="auth-message" id="message" role="status" aria-live="polite" style="margin-top:16px;"></div>
@@ -97,7 +97,8 @@
   <!-- FOOTER (load từ Footer/footer.html) -->
   <div id="footer-placeholder"></div>
 
-    <script src="../../components/tin-tuc/partials.js?v=2"></script>
+    <script src="../../components/header/partials.js"></script>
+    <script src="../../components/dang-ky/sendCode.js"></script>
     <script src="../../components/quen-mk/quen-mk.js"></script>
 </body>
 </html>

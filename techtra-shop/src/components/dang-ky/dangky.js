@@ -1,8 +1,12 @@
 /* ============================================
-   TECHTRA - ĐĂNG KÝ
+   TECHTRA - ĐĂNG KÝ (dùng backend Express)
+   - Bước gửi mã  : TechnoraOtp.send(identifier, channel, 'register')
+   - Bước xác nhận: TechnoraOtp.verify(identifier, channel, 'register', code)
+   - Bước tạo user: POST /api/auth/register
+   - Backend tự hash password bằng bcrypt
    ============================================ */
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const sendCodeBtn = document.getElementById('sendCodeBtn');
     const verifySection = document.getElementById('verifySection');
     const verifyBtn = document.getElementById('verifyBtn');
@@ -13,6 +17,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const emailSection = document.getElementById('emailSection');
     const emailInput = document.getElementById('email');
     const phoneInput = document.getElementById('phoneNumber');
+
+    // === Backend helpers ===
+    async function apiPost(path, body) {
+        const res = await fetch(`/api${path}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body || {}),
+        });
+        let json = null;
+        try { json = await res.json(); } catch (_) {}
+        if (!res.ok || !json?.success) {
+            throw new Error(json?.error || `Lỗi máy chủ (HTTP ${res.status})`);
+        }
+        return json;
+    }
 
     // Toggle show/hide password
     document.querySelectorAll('[data-toggle]').forEach((btn) => {
@@ -60,13 +79,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         tempMethod = selected;
 
-        // Update visual state of toggle labels
         document.querySelectorAll('.method-toggle__label').forEach((lbl) => {
             const input = document.getElementById(lbl.getAttribute('for'));
             lbl.classList.toggle('is-active', input && input.checked);
         });
 
-        // Reset verify section khi đổi phương thức
         verifySection.style.display = 'none';
         sendCodeBtn.style.display = '';
     }
@@ -78,25 +95,25 @@ document.addEventListener('DOMContentLoaded', () => {
     function setSendLoading(loading) {
         sendCodeBtn.disabled = loading;
         sendCodeBtn.innerHTML = loading
-            ? '<i class="fa-solid fa-spinner fa-spin"></i><span>Đang gửi mã...</span>'
+            ? '<i class="fa-solid fa-spinner fa-spin"></i><span>Đang xử lý...</span>'
             : '<i class="fa-solid fa-paper-plane"></i><span>Gửi mã xác nhận</span>';
     }
 
     function setVerifyLoading(loading) {
         verifyBtn.disabled = loading;
         verifyBtn.innerHTML = loading
-            ? '<i class="fa-solid fa-spinner fa-spin"></i><span>Đang xác nhận...</span>'
+            ? '<i class="fa-solid fa-spinner fa-spin"></i><span>Đang đăng ký...</span>'
             : '<i class="fa-solid fa-circle-check"></i><span>Xác nhận &amp; Đăng ký</span>';
     }
 
-    // Gửi mã xác nhận
+    // Bước "Gửi mã" → gọi backend gửi OTP qua email/Zalo.
+    // Backend sinh mã, lưu in-memory cache và gọi service thật.
     sendCodeBtn.addEventListener('click', async () => {
         const fullname = document.getElementById('fullname').value.trim();
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
         const confirmPassword = document.getElementById('confirmPassword').value;
 
-        // Validate
         if (!username || username.length < 4) {
             showMessage('Tên đăng nhập phải có ít nhất 4 ký tự.', 'error');
             return;
@@ -111,6 +128,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let identifier = '';
+        let emailVal = '';
+        let phoneVal = '';
         if (tempMethod === 'email') {
             const email = emailInput.value.trim();
             if (!email) {
@@ -122,8 +141,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 showMessage('Email không hợp lệ.', 'error');
                 return;
             }
+            emailVal = email;
             identifier = email;
-            tempEmail = email;
         } else {
             const phone = phoneInput.value.trim();
             if (!phone) {
@@ -135,37 +154,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 showMessage('Số điện thoại không hợp lệ.', 'error');
                 return;
             }
+            phoneVal = phone;
             identifier = phone;
         }
 
-        // Cache form data
         tempFullname = fullname;
         tempUsername = username;
         tempPassword = password;
         tempIdentifier = identifier;
+        tempEmail = emailVal;
+        tempPhone = phoneVal;
 
-        setSendLoading(true);
-        showMessage('', 'info');
-
+        // Gọi backend gửi mã xác nhận (email hoặc Zalo) qua TechnoraOtp wrapper
+        let otpResult;
         try {
-            await window.sendVerificationCode(identifier, tempMethod);
-            verifySection.style.display = '';
-            sendCodeBtn.style.display = 'none';
-            showMessage(
-                `Mã xác nhận đã được gửi qua ${tempMethod === 'email' ? 'email' : 'Zalo'}. Vui lòng kiểm tra.`,
-                'success'
-            );
-            // Focus vào ô nhập mã
-            setTimeout(() => document.getElementById('verifyCode')?.focus(), 50);
+            otpResult = await window.TechnoraOtp.send(identifier, tempMethod, 'register');
         } catch (err) {
-            console.error('Send verification error:', err);
-            showMessage(err.message || 'Có lỗi xảy ra khi gửi mã.', 'error');
-        } finally {
-            setSendLoading(false);
+            showMessage(err.message || 'Không gửi được mã xác nhận. Vui lòng thử lại.', 'error');
+            return;
         }
+
+        verifySection.style.display = '';
+        sendCodeBtn.style.display = 'none';
+        let msg = `Mã xác nhận đã được gửi tới <strong>${identifier}</strong>. Vui lòng kiểm tra và nhập mã 6 số.`;
+        if (otpResult?.code) {
+            msg += `<br><small style="color:#2563eb">[Dev mode] Mã của bạn: <strong>${otpResult.code}</strong></small>`;
+            // Auto-fill để test nhanh
+            const codeEl = document.getElementById('verifyCode');
+            if (codeEl) codeEl.value = otpResult.code;
+        }
+        showMessage(msg, 'success');
+        const codeEl = document.getElementById('verifyCode');
+        if (codeEl) codeEl.focus();
     });
 
-    // Xác nhận mã + đăng ký
+    // Bước xác nhận mã → gọi /api/auth/verify-code, sau đó /api/auth/register
     verifyBtn.addEventListener('click', async () => {
         const code = document.getElementById('verifyCode').value.trim();
         if (!code || code.length !== 6 || !/^\d+$/.test(code)) {
@@ -177,48 +200,24 @@ document.addEventListener('DOMContentLoaded', () => {
         showMessage('', 'info');
 
         try {
-            // 1. Verify code
-            const verifyResp = await fetch('/api/auth/verify-code', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    identifier: tempIdentifier,
-                    code,
-                    type: tempMethod
-                })
+            // 1) Xác nhận mã qua TechnoraOtp (channel='email'|'zalo', purpose='register')
+            await window.TechnoraOtp.verify(tempIdentifier, tempMethod, 'register', code);
+
+            // 2) Tạo tài khoản (backend tự hash password)
+            await apiPost('/auth/register', {
+                username: tempUsername,
+                email: tempEmail || null,
+                password: tempPassword,
+                full_name: tempFullname || null,
             });
-            const verifyData = await verifyResp.json();
-
-            if (!verifyResp.ok) {
-                throw new Error(verifyData.error || 'Mã xác nhận không đúng hoặc đã hết hạn.');
-            }
-
-            // 2. Register user
-            const regResp = await fetch('/api/auth/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    username: tempUsername,
-                    email: tempEmail || null,
-                    phone: tempMethod === 'zalo' ? tempIdentifier : null,
-                    password: tempPassword,
-                    full_name: tempFullname || null
-                })
-            });
-            const regData = await regResp.json();
-
-            if (!regResp.ok) {
-                throw new Error(regData.error || 'Đăng ký thất bại.');
-            }
 
             showMessage('Đăng ký thành công! Đang chuyển đến trang đăng nhập...', 'success');
-
             setTimeout(() => {
                 window.location.href = '/components/dang-nhap/dangnhap.html';
             }, 1200);
         } catch (err) {
-            console.error('Verify/register error:', err);
-            showMessage(err.message || 'Có lỗi xảy ra.', 'error');
+            console.error('Register error:', err);
+            showMessage(err.message || 'Đăng ký thất bại.', 'error');
         } finally {
             setVerifyLoading(false);
         }

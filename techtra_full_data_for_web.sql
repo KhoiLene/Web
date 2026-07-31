@@ -1,254 +1,2755 @@
--- =============================================================
--- TECHTRA FULL DATA FOR WEB
--- File: techtra_full_data_for_web.sql
--- Mục tiêu: Seed đầy đủ dữ liệu cho các tác vụ web (admin + shop)
--- Tương thích: PostgreSQL / Supabase
--- Ghi chú:
---  - Script ưu tiên idempotent (ON CONFLICT, UPDATE theo id)
---  - Giả định schema chính đã tồn tại (products, product_groups, homepage_*, ...)
--- =============================================================
-
 BEGIN;
 
 -- =============================================================
--- 0) TABLE BỔ SUNG (nếu chưa có)
+-- TECHTRA SHOP — FULL DATABASE SCHEMA (tất cả chức năng đã code)
+-- Project Supabase: https://pbuqcvlcqrxdammvbwvs.supabase.co
+-- Updated: 2026-07-28
+-- -------------------------------------------------------------
+-- File này gộp chung schema chính + các migration (init-db.sql +
+-- init-db.backup.sql + các patch gần đây). Đây là file SQL DUY NHẤT
+-- cho toàn bộ dự án, thay thế cho cả init-db.sql + init-db.backup.sql.
+--
+-- Mục đích: 1 file SQL DUY NHẤT cho toàn bộ dự án.
+--   • Postgres cho backend Express  (chạy local bằng Docker)
+--   • Supabase Postgres cho FE      (chạy trong SQL Editor)
+-- Tất cả bảng/cột/policy đều idempotent — chạy nhiều lần OK.
+--
+-- Bao gồm (cập nhật đến 2026-07-28):
+--   §0  Extensions + GRANT schema public (fix lỗi permission)
+--   §1  product_groups           — Nhóm sản phẩm (có parent_id, slider_text, intro_*)
+--   §2  products                 — Sản phẩm (mặc định ẨN khi tạo, có flash sale)
+--   §3  price_list               — Bảng giá SKU (import vào products)
+--   §4  product_shipping_services — Dịch vụ vận chuyển J&T
+--   §5  customers                — Khách hàng
+--   §6  orders / order_items     — Đơn hàng + chi tiết (+ patch 2026-07-28)
+--   §7  admins                   — Tài khoản admin
+--   §8  users                    — Tài khoản người dùng (auth shop)
+--   §9  posts                    — Bài viết / nội dung (có source_url, summary, excerpt_html)
+--   §10 homepage_banners
+--   §11 homepage_sections + homepage_section_products
+--   §12 homepage_config          — Cấu hình trang chủ (background/hero/sections/flashSale)
+--   §13 homepage_values          — 4 thẻ giá trị thương hiệu
+--   §14 homepage_promo_banners   — 2 banner quảng cáo
+--   §15 homepage_articles        — Bài viết / tài liệu (đã loại bỏ khỏi HomePage UI)
+--   §16 homepage_blog            — Góc chia sẻ
+--   §17 homepage_picks           — Sắp xếp slider (UNIQUE kind+target_id)
+--   §18 transactions             — Sổ quỹ / doanh thu
+--   §19 Triggers + Functions     — generate_order_code, update_updated_at
+--   §20 RLS policies             — allow_all_<table> cho từng bảng
+--   §21 Storage buckets + policies (product-images, homepage-assets)
+--   §22 Dữ liệu mẫu
+--   §23 Reload PostgREST cache
+--   §24 MIGRATION: Voucher public (is_public trên customer_vouchers)
+--   §25 MIGRATION: Loyalty + orders (customer_stats, customer_vouchers, ...)
+--   §26 MIGRATION: J&T Express (jt_* columns trên orders)
+--   §END PATCH: thêm cột orders/order_items để khớp FE thanh-toan.js
+--              + backfill status lowercase + customer_name từ receiver_*
 -- =============================================================
 
-CREATE TABLE IF NOT EXISTS product_reviews (
-  id            BIGSERIAL PRIMARY KEY,
-  product_id    BIGINT       NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-  rating        INTEGER      NOT NULL CHECK (rating BETWEEN 1 AND 5),
-  comment       TEXT,
-  reviewer_name VARCHAR(120) DEFAULT 'Khách hàng',
-  is_approved   BOOLEAN      DEFAULT TRUE,
-  created_at    TIMESTAMPTZ  DEFAULT NOW()
+
+-- =============================================================
+-- §0  EXTENSIONS + QUYỀN TRUY CẬP SCHEMA PUBLIC
+-- =============================================================
+create extension if not exists "pgcrypto";  -- gen_random_uuid()
+
+-- Supabase mặc định TẮT quyền USAGE trên schema `public` đối với role
+-- `anon` và `authenticated`. Dù đã tạo bảng + policy, FE vẫn bị từ
+-- chối ở bước resolve schema. GRANT lại là fix triệt để.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role NOLOGIN; END IF;
+END;
+$$;
+
+grant usage on schema public to anon, authenticated, service_role;
+
+grant all privileges on all tables    in schema public to anon, authenticated, service_role;
+grant all privileges on all sequences in schema public to anon, authenticated, service_role;
+grant all privileges on all functions in schema public to anon, authenticated, service_role;
+
+alter default privileges in schema public
+  grant all privileges on tables    to anon, authenticated, service_role;
+alter default privileges in schema public
+  grant all privileges on sequences to anon, authenticated, service_role;
+alter default privileges in schema public
+  grant all privileges on functions to anon, authenticated, service_role;
+
+
+-- =============================================================
+-- §1  product_groups
+-- =============================================================
+create table if not exists product_groups (
+  id             serial primary key,
+  name           varchar(255) not null,
+  slug           varchar(255) unique not null,
+  description    text,
+  image_url      text,
+  condition_type varchar(20)  default 'manual',        -- 'manual' | 'automatic'
+  is_active      boolean      default true,
+  is_slider      boolean      default false,           -- Bật cờ này để hiện trong slider trang chủ
+  sort_order     integer      default 0,
+  product_count  integer      default 0,
+  created_at     timestamp    default now(),
+  updated_at     timestamp    default now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_product_reviews_product
-  ON product_reviews (product_id, created_at DESC);
+-- Cột bổ sung cho nhóm: cha-con + slider/intro
+alter table product_groups
+  add column if not exists parent_id       integer references product_groups(id) on delete cascade,
+  add column if not exists slider_text     text,
+  add column if not exists intro_title     text,
+  add column if not exists intro_subtitle  text,
+  add column if not exists intro_image_url text;
 
-CREATE TABLE IF NOT EXISTS orders (
-  id              SERIAL PRIMARY KEY,
-  order_code      VARCHAR(50) UNIQUE,
-  customer_id     INTEGER REFERENCES customers(id) ON DELETE SET NULL,
-  customer_name   VARCHAR(255),
-  customer_phone  VARCHAR(20),
-  address         TEXT,
-  province        VARCHAR(100),
-  district        VARCHAR(100),
-  ward            VARCHAR(100),
-  total_price     NUMERIC(12,2) DEFAULT 0,
-  shipping_fee    NUMERIC(10,2) DEFAULT 0,
-  discount_amount NUMERIC(10,2) DEFAULT 0,
-  final_price     NUMERIC(12,2) DEFAULT 0,
-  payment_method  VARCHAR(50)  DEFAULT 'cod',
-  payment_status  VARCHAR(20)  DEFAULT 'pending',
-  status          VARCHAR(30)  DEFAULT 'pending',
-  note            TEXT,
-  created_at      TIMESTAMP    DEFAULT NOW(),
-  updated_at      TIMESTAMP    DEFAULT NOW()
+create index if not exists idx_product_groups_slider
+  on product_groups (is_slider) where is_slider = true;
+create index if not exists idx_product_groups_parent
+  on product_groups (parent_id);
+
+
+-- =============================================================
+-- §2  products
+-- -------------------------------------------------------------
+-- Lưu ý: is_active mặc định FALSE — SP mới tạo (kể cả import từ
+-- price_list) sẽ ẨN trên web cho tới khi admin bật tay (yêu cầu
+-- "sản phẩm mới chưa có đủ thông tin thì ẩn trên web").
+-- =============================================================
+create table if not exists products (
+  id            serial primary key,
+  name          varchar(255)  not null,
+  slug          varchar(255)  unique not null,
+  description   text,
+  group_id      integer       references product_groups(id) on delete set null,
+  price         numeric(12,2) not null default 0,
+  final_price   numeric(12,2),                        -- Giá sau giảm (tính sẵn)
+  discount      numeric(5,2)  default 0,              -- % giảm
+  stock         integer       default 0,
+  sku           varchar(100)  unique,
+  weight        numeric(10,2) default 0,
+  weight_unit   varchar(5)    default 'g',
+  height        numeric(8,2)  default 0,
+  width         numeric(8,2)  default 0,
+  length        numeric(8,2)  default 0,
+  images        text[]        default '{}',            -- Mảng URL ảnh (ảnh[0] = ảnh chính)
+  image_url     text,                                  -- Cache ảnh đại diện (= images[0])
+  video_url     text,
+  content_file  text,                                  -- URL file PDF/Word đính kèm
+  pdf_name      varchar(255),
+  brand         varchar(255),
+  origin        varchar(255),
+  material      varchar(255),
+  barcode       varchar(100),
+  gtin          varchar(100),
+  category      varchar(255),
+  rating        numeric(3,2)  default 5,
+  reviews       integer       default 0,
+  is_new        boolean       default false,
+  -- ⚠ MẶC ĐỊNH FALSE: SP mới tạo ẩn trên web (xem chú thích đầu mục §2)
+  is_active     boolean       default false,
+  is_featured   boolean       default false,          -- Được phép vào "Danh mục nổi bật"
+  is_flash_sale boolean       default false,          -- Được phép vào "Flash sale"
+  percent_sold  integer       default 0,
+  old_price     numeric(12,2),
+  flash_sale_discount numeric(5,2),                   -- % giảm riêng cho Flash sale
+  flash_sale_end_at   timestamptz,                    -- Thời điểm kết thúc Flash sale
+  cod_enabled   boolean       default true,
+  shipping_type varchar(20)   default 'default',
+  shipping_method varchar(20) default 'default',
+  jt_fee_default numeric(10,2),
+  is_calculating_fee boolean  default false,
+  fee_error     text,
+  status        varchar(20)   default 'active',        -- 'active'|'inactive'|'review'|'deleted'
+  created_at    timestamp     default now(),
+  updated_at    timestamp     default now()
 );
 
-CREATE TABLE IF NOT EXISTS order_items (
-  id           SERIAL PRIMARY KEY,
-  order_id     INTEGER REFERENCES orders(id) ON DELETE CASCADE,
-  product_id   INTEGER REFERENCES products(id) ON DELETE SET NULL,
-  product_name VARCHAR(255),
-  product_sku  VARCHAR(100),
-  image_url    TEXT,
-  quantity     INTEGER       NOT NULL DEFAULT 1,
-  unit_price   NUMERIC(12,2) NOT NULL,
-  discount     NUMERIC(5,2)  DEFAULT 0,
-  subtotal     NUMERIC(12,2) NOT NULL
+create index if not exists idx_products_flash_sale_discount
+  on products (flash_sale_discount) where flash_sale_discount is not null;
+create index if not exists idx_products_flash_sale_end_at
+  on products (flash_sale_end_at);
+create index if not exists idx_products_slug       on products (slug);
+create index if not exists idx_products_group      on products (group_id);
+create index if not exists idx_products_status_act on products (status) where status = 'active';
+create index if not exists idx_products_is_active  on products (is_active) where is_active = true;
+
+
+-- =============================================================
+-- §3  price_list  (bảng giá — 1 dòng = 1 SKU; import sang products)
+-- =============================================================
+create table if not exists price_list (
+  id          serial primary key,
+  sku         varchar(100) unique not null,
+  product_id  integer references products(id)         on delete set null,
+  name        varchar(255) not null,
+  group_id    integer references product_groups(id)  on delete set null,
+  group_name  varchar(255),
+  price       numeric(12,2) not null default 0,
+  discount    numeric(5,2)  default 0,
+  final_price numeric(12,2),
+  stock       integer       default 0,
+  unit        varchar(20)   default 'cái',
+  note        text,
+  is_active   boolean       default true,
+  sort_order  integer       default 0,
+  created_at  timestamp     default now(),
+  updated_at  timestamp     default now()
 );
 
-CREATE TABLE IF NOT EXISTS transactions (
-  id          SERIAL PRIMARY KEY,
-  order_id    INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-  type        VARCHAR(20)   NOT NULL,
-  amount      NUMERIC(12,2) NOT NULL,
-  description TEXT,
-  created_at  TIMESTAMP DEFAULT NOW()
+create index if not exists idx_price_list_sku    on price_list (sku);
+create index if not exists idx_price_list_group  on price_list (group_id);
+create index if not exists idx_price_list_active on price_list (is_active);
+
+
+-- =============================================================
+-- §4  product_shipping_services  (J&T theo từng sản phẩm)
+-- =============================================================
+create table if not exists product_shipping_services (
+  id           serial primary key,
+  product_id   integer references products(id) on delete cascade,
+  service_code varchar(20)  not null,                 -- 'EZ' | 'FAST' | 'SUPER'
+  service_name varchar(100),
+  is_active    boolean default true
 );
 
--- =============================================================
--- 1) ADMINS / CUSTOMERS
--- =============================================================
-
-INSERT INTO admins (id, name, email, password, role, is_active)
-VALUES
-  (1, 'Super Admin', 'admin@techtra.vn', '$2b$10$placeholder_hash_change_me', 'superadmin', TRUE),
-  (2, 'Content Admin', 'content@techtra.vn', '$2b$10$placeholder_hash_change_me', 'admin', TRUE)
-ON CONFLICT (email) DO UPDATE
-SET name = EXCLUDED.name,
-    role = EXCLUDED.role,
-    is_active = EXCLUDED.is_active;
-
-INSERT INTO customers (id, name, email, phone, password, avatar_url, address, province, district, ward, is_active)
-VALUES
-  (1, 'Nguyen Van A', 'a.nguyen@demo.vn', '0901000001', '$2b$10$customer_hash_1', NULL, '12 Nguyen Hue', 'TP.HCM', 'Quan 1', 'Ben Nghe', TRUE),
-  (2, 'Tran Thi B', 'b.tran@demo.vn', '0901000002', '$2b$10$customer_hash_2', NULL, '99 Le Loi', 'Ha Noi', 'Ba Dinh', 'Dien Bien', TRUE),
-  (3, 'Le Van C', 'c.le@demo.vn', '0901000003', '$2b$10$customer_hash_3', NULL, '45 Hai Ba Trung', 'Da Nang', 'Hai Chau', 'Thach Thang', TRUE)
-ON CONFLICT (email) DO UPDATE
-SET name = EXCLUDED.name,
-    phone = EXCLUDED.phone,
-    is_active = EXCLUDED.is_active;
 
 -- =============================================================
--- 2) PRODUCT GROUPS
+-- §5  customers  (Khách hàng mua hàng)
 -- =============================================================
+create table if not exists customers (
+  id         serial primary key,
+  name       varchar(255),
+  email      varchar(255) unique,
+  phone      varchar(20),
+  password   varchar(255),                            -- bcrypt hash
+  avatar_url text,
+  address    text,
+  province   varchar(100),
+  district   varchar(100),
+  ward       varchar(100),
+  is_active  boolean   default true,
+  created_at timestamp default now(),
+  updated_at timestamp default now()
+);
 
-INSERT INTO product_groups (id, name, slug, description, image_url, condition_type, is_active, is_sale, sort_order)
-VALUES
-  (1, 'Cà phê rang xay', 'ca-phe-rang-xay', 'Nhóm cà phê rang mộc nguyên chất', 'https://images.unsplash.com/photo-1509042239860-f550ce710b93', 'manual', TRUE, FALSE, 1),
-  (2, 'Trà thảo mộc', 'tra-thao-moc', 'Nhóm trà chăm sóc sức khỏe', 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085', 'manual', TRUE, FALSE, 2),
-  (3, 'Combo quà tặng', 'combo-qua-tang', 'Combo làm quà tặng dịp lễ', 'https://images.unsplash.com/photo-1514866747592-c2d279258a9f', 'manual', TRUE, FALSE, 3),
-  (4, 'Flash Sale', 'flash-sale', 'Sản phẩm đang giảm giá sốc', 'https://images.unsplash.com/photo-1521017432531-fbd92d768814', 'manual', TRUE, TRUE, 4),
-  (5, 'Best Seller', 'best-seller', 'Các sản phẩm bán chạy nhất', 'https://images.unsplash.com/photo-1498804103079-a6351b050096', 'manual', TRUE, FALSE, 5)
-ON CONFLICT (slug) DO UPDATE
-SET name = EXCLUDED.name,
-    description = EXCLUDED.description,
-    image_url = EXCLUDED.image_url,
-    is_active = EXCLUDED.is_active,
-    is_sale = EXCLUDED.is_sale,
-    sort_order = EXCLUDED.sort_order;
-
--- Cờ hiển thị slider (nếu schema có cột is_slider)
-ALTER TABLE product_groups ADD COLUMN IF NOT EXISTS is_slider BOOLEAN DEFAULT FALSE;
-UPDATE product_groups
-SET is_slider = CASE WHEN slug IN ('ca-phe-rang-xay', 'tra-thao-moc', 'combo-qua-tang') THEN TRUE ELSE FALSE END
-WHERE slug IN ('ca-phe-rang-xay', 'tra-thao-moc', 'combo-qua-tang', 'flash-sale', 'best-seller');
 
 -- =============================================================
--- 3) PRODUCTS
+-- §6  orders + order_items
+-- =============================================================
+create table if not exists orders (
+  id              serial primary key,
+  order_code      varchar(50) unique,                 -- TC-YYYYMMDD-XXXX (tự sinh)
+  customer_id     integer references customers(id) on delete set null,
+  customer_name   varchar(255),                       -- Snapshot tên KH lúc đặt
+  customer_phone  varchar(20),
+  address         text,
+  province        varchar(100),
+  district        varchar(100),
+  ward            varchar(100),
+  total_price     numeric(12,2) default 0,
+  shipping_fee    numeric(10,2) default 0,
+  discount_amount numeric(10,2) default 0,
+  final_price     numeric(12,2) default 0,            -- total - discount + ship
+  payment_method  varchar(50)  default 'cod',         -- 'cod' | 'vnpay' | 'momo'
+  payment_status  varchar(20)  default 'pending',     -- 'pending'|'paid'|'failed'
+  status          varchar(30)  default 'pending',     -- 'pending'|'confirmed'|'shipping'|'done'|'cancelled'
+  note            text,
+  created_at      timestamp    default now(),
+  updated_at      timestamp    default now()
+);
+
+create table if not exists order_items (
+  id           serial primary key,
+  order_id     integer       references orders(id)   on delete cascade,
+  product_id   integer       references products(id) on delete set null,
+  product_name varchar(255),                          -- Snapshot tên SP
+  product_sku  varchar(100),
+  image_url    text,
+  quantity     integer       not null default 1,
+  unit_price   numeric(12,2) not null,
+  discount     numeric(5,2)  default 0,
+  subtotal     numeric(12,2) not null
+);
+
+
+-- =============================================================
+-- §7  admins  (Đăng nhập /admin)
+-- =============================================================
+create table if not exists admins (
+  id         serial primary key,
+  name       varchar(255),
+  email      varchar(255) unique not null,
+  password   varchar(255) not null,                   -- bcrypt hash
+
+  -- superadmin/admin
+  role       varchar(20)  default 'admin',            -- 'superadmin' | 'admin'
+
+  -- Ưu tiên (top 2) — dùng khi nâng cấp cơ chế admin top priority.
+  -- (Nếu bạn không dùng, vẫn OK vì logic hiện tại FE chỉ dựa role.)
+  admin_priority integer default 0,
+
+  is_active  boolean      default true,
+  created_at timestamp    default now()
+);
+
+-- Enforce: chỉ tối đa 2 tài khoản role='superadmin'
+-- (dựa trên role trước đó; nếu role policy của bạn phức tạp hơn, mình sẽ chỉnh lại)
+create or replace function enforce_superadmin_limit()
+returns trigger as $$
+begin
+  if (NEW.role = 'superadmin') then
+    if (tg_op = 'INSERT') then
+      if (select count(*) from admins a where a.role = 'superadmin') >= 2 then
+        raise exception 'Superadmin limit exceeded (max 2)';
+      end if;
+    else
+      -- UPDATE: nếu đổi role sang superadmin
+      if (OLD.role <> 'superadmin') then
+        if (select count(*) from admins a where a.role = 'superadmin' and a.id <> OLD.id) >= 2 then
+          raise exception 'Superadmin limit exceeded (max 2)';
+        end if;
+      end if;
+    end if;
+  end if;
+  return NEW;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_enforce_superadmin_limit on admins;
+create trigger trg_enforce_superadmin_limit
+before insert or update of role on admins
+for each row execute function enforce_superadmin_limit();
+
+
+-- =============================================================
+-- §8  users  (Đăng ký / đăng nhập shop — backend Express)
+-- =============================================================
+create table if not exists users (
+  id            serial primary key,
+  username      varchar(50) unique not null,
+  email         varchar(255) unique not null,
+  password_hash text not null,                        -- bcrypt hash
+  full_name     varchar(255),
+  phone         varchar(20),                          -- SĐT Zalo (nullable — đăng ký bằng email thì NULL)
+  is_active     boolean     default true,
+  role          varchar(20) default 'user',           -- 'admin' | 'user'
+  created_at    timestamp   default now(),
+  updated_at    timestamp   default now()
+);
+
+-- Backfill: thêm cột phone nếu bảng users cũ chưa có (idempotent).
+alter table users add column if not exists phone varchar(20);
+
+create index if not exists idx_users_username on users (username);
+create index if not exists idx_users_email    on users (email);
+
+
+-- =============================================================
+-- §9  posts  (Bài viết / trang đọc báo)
+-- -------------------------------------------------------------
+-- Cột bổ sung (idempotent):
+--   source_url        — link gốc bài báo (sau khi scrape)
+--   site_name         — tên site: VnExpress, Tuổi Trẻ…
+--   summary           — tóm tắt ngắn 2-3 dòng
+--   excerpt_html      — nội dung HTML đã scrape (Readability)
+--   thumbnail_source  — URL ảnh đại diện lấy từ scrape
+-- =============================================================
+create table if not exists posts (
+  id           serial primary key,
+  title        varchar(500) not null,
+  slug         varchar(500) unique not null,
+  content      text,
+  thumbnail    text,
+  status       varchar(20) default 'draft',           -- 'draft' | 'published'
+  author_id    integer     references admins(id) on delete set null,
+  published_at timestamp,
+  created_at   timestamp   default now(),
+  updated_at   timestamp   default now()
+);
+
+alter table posts
+  add column if not exists source_url       text,
+  add column if not exists site_name        varchar(255),
+  add column if not exists summary          text,
+  add column if not exists excerpt_html     text,
+  add column if not exists thumbnail_source text;
+
+create index if not exists idx_posts_source     on posts (source_url);
+create index if not exists idx_posts_status_pub on posts (status, published_at desc);
+
+
+-- =============================================================
+-- §9.1  news_categories  (Nhóm tin tức 2 cấp: cha → con → bài)
+-- -------------------------------------------------------------
+-- Bài viết (`posts.category_id`) tham chiếu tới id nhóm CON
+-- (parent_id IS NOT NULL). Mỗi nhóm CON thuộc 1 nhóm CHA
+-- (parent_id = root.id) hoặc là gốc (parent_id IS NULL).
+-- Xoá nhóm cha → cascade xoá nhóm con.
+-- Xoá nhóm con → bài viết set category_id = NULL (không cascade).
+-- =============================================================
+create table if not exists news_categories (
+  id          serial primary key,
+  name        varchar(255) not null,
+  slug        varchar(255) unique not null,
+  description text,
+  icon        varchar(100),                          -- FontAwesome class (vd: 'fas fa-heart')
+  image_url   text,                                  -- Ảnh minh hoạ nhóm
+  parent_id   integer references news_categories(id) on delete cascade,
+  sort_order  integer      default 0,
+  is_active   boolean      default true,
+  created_at  timestamp    default now(),
+  updated_at  timestamp    default now()
+);
+
+create index if not exists idx_news_categories_parent on news_categories (parent_id);
+create index if not exists idx_news_categories_active on news_categories (is_active) where is_active = true;
+create index if not exists idx_news_categories_order  on news_categories (sort_order);
+
+-- Cột mới cho `posts`: gắn nhóm + hỗ trợ upload file PDF/Word
+alter table posts
+  add column if not exists category_id integer references news_categories(id) on delete set null,
+  add column if not exists file_url    text,
+  add column if not exists file_name   varchar(255),
+  add column if not exists file_size   bigint,
+  add column if not exists post_type   varchar(20) default 'link';
+  -- post_type: 'link' | 'file' | 'scraped' | 'manual'
+
+create index if not exists idx_posts_category on posts (category_id);
+create index if not exists idx_posts_type     on posts (post_type);
+
+
+-- =============================================================
+-- §9.2  product_reviews  (Đánh giá của khách hàng trên shop)
+-- -------------------------------------------------------------
+-- Mỗi dòng = 1 review của 1 khách (có thể ẩn/duyệt qua is_approved).
+-- FK tới products.id, xoá sản phẩm → cascade xoá luôn review.
+-- Đặt ở đây (trước §20 RLS) để §20 có thể bật RLS + policy cho bảng này.
+-- §END PATCH 4 bổ sung trigger tự đồng bộ products.reviews_*.
+-- =============================================================
+create table if not exists product_reviews (
+  id            bigserial    primary key,
+  product_id    bigint       not null references products(id) on delete cascade,
+  rating        integer      not null check (rating between 1 and 5),
+  comment       text,
+  reviewer_name varchar(120) default 'Khách hàng',
+  is_approved   boolean      default true,
+  created_at    timestamptz  default now()
+);
+
+create index if not exists idx_product_reviews_product
+  on product_reviews (product_id, created_at desc);
+
+-- View tổng hợp rating + số lượt đánh giá cho mỗi sản phẩm
+-- (tiện cho admin xem nhanh; FE chủ yếu dùng products.reviews_count/reviews_sum denormalized)
+create or replace view v_product_rating as
+  select product_id,
+         count(*)        as review_count,
+         avg(rating)::numeric(3,2) as avg_rating
+  from product_reviews
+  where is_approved = true
+  group by product_id;
+
+
+-- =============================================================
+-- §10  homepage_banners
+-- =============================================================
+create table if not exists homepage_banners (
+  id         serial primary key,
+  title      varchar(255),
+  image_url  text not null,
+  link_url   text,
+  sort_order integer  default 0,
+  is_active  boolean  default true,
+  created_at timestamp default now()
+);
+
+
+-- =============================================================
+-- §11  homepage_sections + homepage_section_products
+-- =============================================================
+create table if not exists homepage_sections (
+  id          serial primary key,
+  section_key varchar(50) unique not null,            -- 'featured' | 'sale' | 'new_arrivals'
+  title       varchar(255),
+  is_active   boolean default true,
+  sort_order  integer default 0
+);
+
+create table if not exists homepage_section_products (
+  id         serial primary key,
+  section_id integer references homepage_sections(id) on delete cascade,
+  product_id integer references products(id)         on delete cascade,
+  sort_order integer default 0
+);
+
+
+-- =============================================================
+-- §12  homepage_config  (Cấu hình trang chủ — 1 dòng duy nhất)
+-- -------------------------------------------------------------
+-- Cấu trúc JSONB:
+--   background : { type: 'color'|'image'|'video', color, imageUrl, videoUrl }
+--   hero       : { enabled, imageUrl, title, subtitle, ctaText, ctaLink }
+--   sections   : { heroSlider, brandValues, categories, flashSale,
+--                  bestSellers, promoBanners, blog, newsletter }
+--   flash_sale : { title, enabled }   ← KHÔNG còn countdownSeconds (mặc định)
+-- =============================================================
+create table if not exists homepage_config (
+  id          int primary key default 1,
+  background  jsonb not null default '{
+    "type": "color",
+    "color": "#6a11cb",
+    "imageUrl": "",
+    "videoUrl": ""
+  }'::jsonb,
+  hero        jsonb not null default '{
+    "enabled": true,
+    "imageUrl": "",
+    "title": "Chào mừng đến với Techtra Shop",
+    "subtitle": "Cửa hàng công nghệ — uy tín, chất lượng, giao hàng toàn quốc",
+    "ctaText": "Khám phá ngay",
+    "ctaLink": "/san-pham"
+  }'::jsonb,
+  sections    jsonb not null default '{
+    "heroSlider":   true,
+    "brandValues":  true,
+    "categories":   true,
+    "flashSale":    true,
+    "bestSellers":  true,
+    "promoBanners": true,
+    "blog":         true,
+    "newsletter":   true
+  }'::jsonb,
+  flash_sale  jsonb not null default '{
+    "title": "Giờ Vàng Deal Xịn",
+    "enabled": true
+  }'::jsonb,
+  updated_at  timestamptz default now(),
+  constraint single_row check (id = 1)
+);
+
+insert into homepage_config (id) values (1) on conflict (id) do nothing;
+
+
+-- =============================================================
+-- §13  homepage_values  (4 thẻ giá trị thương hiệu)
+-- =============================================================
+create table if not exists homepage_values (
+  id          uuid primary key default gen_random_uuid(),
+  icon        text not null default 'fas fa-seedling',
+  title       text not null,
+  description text,
+  sort_order  int  default 0,
+  enabled     boolean default true,
+  created_at  timestamptz default now()
+);
+
+
+-- =============================================================
+-- §14  homepage_promo_banners  (2 banner quảng cáo trái/phải)
+-- =============================================================
+create table if not exists homepage_promo_banners (
+  id         uuid primary key default gen_random_uuid(),
+  position   text not null check (position in ('left', 'right')),
+  tag        text,
+  title      text not null,
+  image_url  text,
+  cta_text   text default 'Mua ngay',
+  cta_link   text default '#',
+  sort_order int  default 0,
+  enabled    boolean default true,
+  created_at timestamptz default now()
+);
+
+
+-- =============================================================
+-- §15  homepage_articles  (Bài viết / tài liệu PDF, Word)
+-- -------------------------------------------------------------
+-- Bảng vẫn còn trong DB vì có thể dùng lại; hiện tại HomePage UI
+-- đã bỏ phần "Articles" (theo yêu cầu 2026-07-13) nhưng KHÔNG xóa
+-- bảng để không phá dữ liệu cũ.
+-- =============================================================
+create table if not exists homepage_articles (
+  id         uuid primary key default gen_random_uuid(),
+  type       text not null check (type in ('link', 'file')),
+  title      text not null,
+  url        text,
+  file_url   text,
+  file_name  text,
+  file_size  bigint,
+  created_at timestamptz default now()
+);
+
+
+-- =============================================================
+-- §16  homepage_blog  (Góc chia sẻ)
+-- =============================================================
+create table if not exists homepage_blog (
+  id          uuid primary key default gen_random_uuid(),
+  title       text not null,
+  description text,
+  author      text default 'Admin',
+  image_url   text,
+  link        text default '#',
+  sort_order  int  default 0,
+  enabled     boolean default true,
+  created_at  timestamptz default now()
+);
+
+
+-- =============================================================
+-- §17  homepage_picks  (Sắp xếp slider — featured/flash_sale/slider)
+-- -------------------------------------------------------------
+-- Ràng buộc UNIQUE (kind, target_id) để khi upsert trong admin không
+-- bị thêm trùng 1 sản phẩm 2 lần vào cùng 1 block.
+-- =============================================================
+create table if not exists homepage_picks (
+  id           uuid primary key default gen_random_uuid(),
+  kind         text not null check (kind in ('slider', 'featured', 'flash_sale')),
+  target_id    text not null,                         -- products.id (text/uuid) hoặc product_groups.id
+  target_kind  text not null check (target_kind in ('product', 'group')),
+  custom_title text,
+  custom_image text,
+  sort_order   int  default 0,
+  enabled      boolean default true,
+  created_at   timestamptz default now()
+);
+
+create unique index if not exists uq_homepage_picks
+  on homepage_picks (kind, target_id);
+create index if not exists idx_homepage_picks_kind_order
+  on homepage_picks (kind, sort_order);
+
+
+-- =============================================================
+-- §18  transactions  (Sổ quỹ / doanh thu — dashboard)
+-- =============================================================
+create table if not exists transactions (
+  id          serial primary key,
+  order_id    integer references orders(id) on delete set null,
+  type        varchar(20)   not null,                 -- 'income' | 'expense' | 'refund'
+  amount      numeric(12,2) not null,
+  description text,
+  created_at  timestamp     default now()
+);
+
+
+-- =============================================================
+-- §19  TRIGGERS + FUNCTIONS
 -- =============================================================
 
-ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(255);
-ALTER TABLE products ADD COLUMN IF NOT EXISTS old_price NUMERIC(12,2) DEFAULT 0;
-ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT;
-ALTER TABLE products ADD COLUMN IF NOT EXISTS rating NUMERIC(3,2) DEFAULT 5;
-ALTER TABLE products ADD COLUMN IF NOT EXISTS reviews INTEGER DEFAULT 0;
-ALTER TABLE products ADD COLUMN IF NOT EXISTS is_new BOOLEAN DEFAULT FALSE;
-ALTER TABLE products ADD COLUMN IF NOT EXISTS percent_sold INTEGER DEFAULT 0;
-ALTER TABLE products ADD COLUMN IF NOT EXISTS flash_sale_discount NUMERIC(5,2) DEFAULT 0;
-ALTER TABLE products ADD COLUMN IF NOT EXISTS flash_sale_end_at TIMESTAMPTZ;
+-- Tự sinh mã đơn hàng TC-YYYYMMDD-XXXX
+create or replace function generate_order_code()
+returns trigger as $$
+begin
+  new.order_code := 'TC-' || to_char(now(), 'YYYYMMDD') || '-' || lpad(new.id::text, 4, '0');
+  return new;
+end;
+$$ language plpgsql;
 
-INSERT INTO products (
-  id, name, slug, description, group_id, category,
-  price, old_price, discount, stock, sku,
-  weight, weight_unit, height, width, length,
-  images, image_url, video_url,
-  cod_enabled, shipping_type, status, is_active,
-  rating, reviews, is_new, percent_sold,
-  flash_sale_discount, flash_sale_end_at
+drop trigger if exists trg_order_code on orders;
+create trigger trg_order_code
+  before insert on orders
+  for each row
+  when (new.order_code is null)
+  execute function generate_order_code();
+
+
+-- Tự cập nhật updated_at khi UPDATE
+create or replace function update_updated_at()
+returns trigger as $$
+begin new.updated_at = now(); return new; end;
+$$ language plpgsql;
+
+drop trigger if exists trg_product_groups_upd    on product_groups;
+drop trigger if exists trg_products_upd          on products;
+drop trigger if exists trg_price_list_upd        on price_list;
+drop trigger if exists trg_customers_upd         on customers;
+drop trigger if exists trg_orders_upd            on orders;
+drop trigger if exists trg_users_upd             on users;
+drop trigger if exists trg_posts_upd             on posts;
+drop trigger if exists trg_news_categories_upd   on news_categories;
+
+create trigger trg_product_groups_upd    before update on product_groups   for each row execute function update_updated_at();
+create trigger trg_products_upd          before update on products         for each row execute function update_updated_at();
+create trigger trg_price_list_upd        before update on price_list       for each row execute function update_updated_at();
+create trigger trg_customers_upd         before update on customers        for each row execute function update_updated_at();
+create trigger trg_orders_upd            before update on orders           for each row execute function update_updated_at();
+create trigger trg_users_upd             before update on users            for each row execute function update_updated_at();
+create trigger trg_posts_upd             before update on posts            for each row execute function update_updated_at();
+create trigger trg_news_categories_upd   before update on news_categories  for each row execute function update_updated_at();
+
+
+-- =============================================================
+-- §20  ROW LEVEL SECURITY  (mở quyền cho anon trên Supabase)
+-- =============================================================
+alter table products               enable row level security;
+alter table product_groups         enable row level security;
+alter table price_list             enable row level security;
+alter table product_shipping_services enable row level security;
+alter table customers              enable row level security;
+alter table orders                 enable row level security;
+alter table order_items            enable row level security;
+alter table admins                 enable row level security;
+alter table users                  enable row level security;
+alter table posts                  enable row level security;
+alter table news_categories        enable row level security;
+alter table homepage_banners       enable row level security;
+alter table homepage_sections      enable row level security;
+alter table homepage_section_products enable row level security;
+alter table homepage_config        enable row level security;
+alter table homepage_values        enable row level security;
+alter table homepage_promo_banners enable row level security;
+alter table homepage_articles      enable row level security;
+alter table homepage_blog          enable row level security;
+alter table homepage_picks         enable row level security;
+alter table transactions           enable row level security;
+alter table product_reviews        enable row level security;
+
+-- Tạo policy "allow_all_<table>" cho từng bảng
+do $$
+declare
+  t text;
+  tbls text[] := array[
+    'products', 'product_groups', 'price_list', 'product_shipping_services',
+    'customers', 'orders', 'order_items',
+    'admins', 'users', 'posts', 'news_categories',
+    'homepage_banners', 'homepage_sections', 'homepage_section_products',
+    'homepage_config', 'homepage_values', 'homepage_promo_banners',
+    'homepage_articles', 'homepage_blog', 'homepage_picks', 'transactions',
+    'product_reviews'
+  ];
+begin
+  foreach t in array tbls loop
+    execute format('drop policy if exists "allow_all_%s" on %I', t, t);
+    execute format(
+      'create policy "allow_all_%s" on %I for all using (true) with check (true)',
+      t, t
+    );
+  end loop;
+end $$;
+
+
+-- =============================================================
+-- §21  STORAGE BUCKETS + POLICIES
+-- Tạo 2 bucket public + mở quyền CRUD cho anon.
+-- Skip in standard PostgreSQL (Supabase-only feature)
+-- =============================================================
+do $$
+begin
+  -- Check if storage schema exists (Supabase-specific)
+  -- pg_catalog.pg_namespace là cách đáng tin cậy hơn information_schema
+  if exists (select 1 from pg_catalog.pg_namespace where nspname = 'storage') then
+    -- 21.1 TẠO BUCKET (idempotent nhờ ON CONFLICT)
+    insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+    values
+      ('product-images',  'product-images',  true, 52428800, null),  -- 50 MB, mọi MIME
+      ('homepage-assets', 'homepage-assets', true, 52428800, null)
+    on conflict (id) do update
+      set public          = excluded.public,
+          file_size_limit = excluded.file_size_limit;
+
+    -- 21.2 XOÁ POLICY CŨ (nếu có)
+    drop policy if exists "Allow public upload"  on storage.objects;
+    drop policy if exists "Allow public read"    on storage.objects;
+    drop policy if exists "Allow public update"  on storage.objects;
+    drop policy if exists "Allow public delete"  on storage.objects;
+    drop policy if exists "Allow anon upload"    on storage.objects;
+    drop policy if exists "Allow anon select"    on storage.objects;
+
+    -- 21.3 TẠO POLICY MỚI (cho cả 2 bucket)
+    create policy "Allow public upload"
+      on storage.objects for insert
+      to anon, authenticated
+      with check (bucket_id in ('product-images', 'homepage-assets'));
+
+    create policy "Allow public read"
+      on storage.objects for select
+      to anon, authenticated
+      using (bucket_id in ('product-images', 'homepage-assets'));
+
+    create policy "Allow public update"
+      on storage.objects for update
+      to anon, authenticated
+      using (bucket_id in ('product-images', 'homepage-assets'))
+      with check (bucket_id in ('product-images', 'homepage-assets'));
+
+    create policy "Allow public delete"
+      on storage.objects for delete
+      to anon, authenticated
+      using (bucket_id in ('product-images', 'homepage-assets'));
+  end if;
+end $$;
+
+
+-- =============================================================
+-- §22  DỮ LIỆU MẪU  (chạy lại nhiều lần đều OK)
+-- =============================================================
+
+-- Admin mặc định (password: admin123 — đổi ngay)
+-- Lưu ý: admin DB hiện dùng cột password theo backend/server.js.
+-- Thêm admin_priority để phục vụ cơ chế top-2 nếu bạn dùng.
+insert into admins (name, email, password, role, admin_priority) values
+  ('Super Admin', 'admin@techtra.vn', '$2b$10$placeholder_hash_change_me', 'superadmin', 1)
+on conflict (email) do nothing;
+
+-- User mặc định cho shop
+-- (FE backend login user dùng bảng users: password_hash)
+insert into users (username, email, password_hash, full_name, role) values
+  ('admin', 'admin@techtra.vn', '$2b$10$placeholder_admin_hash', 'Quản trị viên', 'admin'),
+  ('user',  'user@techtra.vn',  '$2b$10$placeholder_user_hash',  'Khách hàng',    'user')
+on conflict (username) do nothing;
+
+-- Nhóm sản phẩm mẫu
+insert into product_groups (name, slug, description, is_active, is_slider, sort_order) values
+  ('Sản phẩm nổi bật',   'san-pham-noi-bat',   'Các sản phẩm bán chạy nhất', true, true,  1),
+  ('Sản phẩm khuyến mãi', 'san-pham-khuyen-mai', 'Đang giảm giá',             true, false, 2),
+  ('Trang chủ',           'trang-chu',           'Hiển thị trên trang chủ',   true, true,  3)
+on conflict (slug) do nothing;
+
+-- Section trang chủ mẫu
+insert into homepage_sections (section_key, title, is_active, sort_order) values
+  ('featured',     'Sản phẩm nổi bật', true, 1),
+  ('sale',         'Đang giảm giá',    true, 2),
+  ('new_arrivals', 'Hàng mới về',      true, 3)
+on conflict (section_key) do nothing;
+
+-- Bảng giá mẫu (import vào products)
+insert into price_list (sku, name, price, discount, final_price, stock, unit, sort_order) values
+  ('SP001', 'Nước rửa bát Techtra 750ml', 89000,  10,  80100, 100, 'chai', 1),
+  ('SP002', 'Bột giặt Techtra 3kg',       165000, 15, 140250,  60, 'túi',  2),
+  ('SP003', 'Nước lau sàn Techtra 1L',    55000,  0,  55000, 200, 'chai', 3)
+on conflict (sku) do nothing;
+
+-- 4 thẻ giá trị thương hiệu mẫu
+insert into homepage_values (icon, title, description, sort_order) values
+  ('fas fa-seedling',     '100% Thiên Nhiên',   'Nguyên liệu thuần thực vật tinh khiết từ vườn dược liệu Việt Nam', 1),
+  ('fas fa-shield-heart', 'Lành và Thật',       'Công thức tối giản, không chất bảo quản độc hại, cam kết công khai thành phần', 2),
+  ('fas fa-industry',     'Nhà Máy Đạt CGMP',   'Quy trình sản xuất khép kín, vô trùng đạt chứng nhận CGMP ASEAN', 3),
+  ('fas fa-baby',         'An Toàn Cho Bé & Bầu','Mỹ phẩm siêu lành tính, được khuyên dùng bởi các chuyên gia y tế', 4)
+on conflict do nothing;
+
+-- 2 banner quảng cáo mẫu
+insert into homepage_promo_banners (position, tag, title, cta_text, cta_link, sort_order) values
+  ('left',  'Quà tặng ngọt ngào',  'Combo Quà Tặng Cho Nửa Yêu Thương', 'Mua ngay',  '#', 1),
+  ('right', 'Liệu pháp phục hồi',  'Chăm Sóc Tóc Dược Liệu Bưởi Đỏ',    'Khám phá',  '#', 2)
+on conflict do nothing;
+
+-- 3 bài blog mẫu
+insert into homepage_blog (title, description, author, sort_order) values
+  ('Top 5 Thành Phần Thiên Nhiên Giúp Phục Hồi Tóc Rụng Cực Nhạy',
+   'Khám phá bí quyết chăm sóc tóc thảo dược an toàn hiệu quả từ tinh dầu bưởi, bồ kết, hương nhu cô đặc.',
+   'Dược sĩ Cỏ Mềm', 1),
+  ('Bầu Bí Vẫn Xinh Rạng Ngời Nhờ 4 Bước Chăm Da Tối Giản Này',
+   'Mẹo thiết lập chu trình dưỡng da lành tính, cam kết 100% không chứa silicon, parabens và hóa chất độc hại.',
+   'Skin Specialist', 2),
+  ('Chiến Dịch Trồng Rừng Giữ Đất: Cỏ Mềm Đồng Hành Cùng Hành Tinh Xanh',
+   'Hành trình phủ xanh các vạt đồi trống miền Trung với hơn 10,000 cây xanh và cam kết giảm thiểu rác thải nhựa.',
+   'Green Life', 3)
+on conflict do nothing;
+
+-- Nhóm tin tức mẫu (4 nhóm CHA — dùng làm mega-menu BÀI VIẾT)
+insert into news_categories (name, slug, description, icon, parent_id, sort_order, is_active) values
+  ('Chăm sóc cơ thể', 'cham-soc-co-the', 'Bí quyết chăm sóc cơ thể toàn diện',  'fas fa-spa',         NULL, 1, true),
+  ('Chăm sóc da',     'cham-soc-da',     'Làm đẹp & dưỡng da chuẩn khoa học',   'fas fa-leaf',         NULL, 2, true),
+  ('Chăm sóc tóc',    'cham-soc-toc',    'Phục hồi tóc hư tổn',                'fas fa-magic',        NULL, 3, true),
+  ('Cẩm nang',        'cam-nang',        'Mẹo vặt & tin tức hữu ích',           'fas fa-book-open',    NULL, 4, true)
+on conflict (slug) do nothing;
+
+-- Nhóm CON mẫu (3 con cho "Chăm sóc cơ thể" — để demo cây 2 cấp)
+insert into news_categories (name, slug, description, icon, parent_id, sort_order, is_active)
+select v.name, v.slug, v.description, v.icon, p.id, v.sort_order, true
+from (values
+  ('Chăm sóc môi',         'cham-soc-moi',         'Dưỡng môi mềm mại',         'fas fa-kiss-wink-heart', 1),
+  ('Chăm sóc tay & chân',  'cham-soc-tay-chan',    'Da tay chân mịn màng',      'fas fa-hand-paper',      2),
+  ('Chăm sóc mẹ & bé',     'cham-soc-me-be',       'An toàn cho cả mẹ và bé',   'fas fa-baby',            3)
+) as v(name, slug, description, icon, sort_order)
+cross join lateral (
+  select id from news_categories where slug = 'cham-soc-co-the' limit 1
+) as p
+where not exists (select 1 from news_categories nc where nc.slug = v.slug);
+
+
+-- =============================================================
+-- §23  LÀM MỚI CACHE SCHEMA SUPABASE
+-- =============================================================
+notify pgrst, 'reload schema';
+
+
+-- =============================================================
+-- HẾT — Toàn bộ schema Techtra Shop đã sẵn sàng.
+-- =============================================================
+-- HƯỚNG DẪN SỬ DỤNG:
+--  1. Chạy file này trong Supabase SQL Editor HOẶC
+--     docker exec -i techtra-db psql -U postgres -d techtra < techtra_full_schema.sql
+--  2. Storage bucket "product-images" và "homepage-assets" đã tạo tự động.
+--  3. Admin mặc định:
+--     email:    admin@techtra.vn
+--     password: admin123   (hash placeholder — đổi bằng API register)
+--  4. Sau khi chạy:
+--     • Nhớ reload PostgREST cache (dòng §23 đã làm)
+--     • Trong admin: tab "Trên kệ" → chip "🙈 Đang ẩn" sẽ thấy
+--       các SP mới (is_active=false) đang chờ bổ sung thông tin
+-- =============================================================
+-- =============================================================
+-- FIX: TẠO LẠI BẢNG price_list  (chạy 1 lần duy nhất trong Supabase SQL Editor)
+-- Project: https://pbuqcvlcqrxdammvbwvs.supabase.co
+-- =============================================================
+-- Nếu bảng đã tồn tại nhưng RLS chặn → đoạn này sẽ mở khóa.
+-- Nếu bảng chưa từng tồn tại → đoạn này tạo mới từ đầu.
+
+-- BƯỚC 1: Tháo mọi policy cũ + xóa bảng nếu đang tồn tại dở dang
+-- (chỉ xóa nếu tồn tại, tránh lỗi nếu chưa có)
+do $$
+begin
+  if exists (select 1 from information_schema.tables
+             where table_schema = 'public' and table_name = 'price_list') then
+    -- Bảng đã tồn tại → tháo policy trước
+    execute 'drop policy if exists "allow_all_price_list" on public.price_list';
+    execute 'drop policy if exists "Allow public" on public.price_list';
+    -- KHÔNG xóa bảng để giữ data nếu có. Nếu muốn xóa sạch, bỏ comment:
+    -- execute 'drop table if exists public.price_list cascade';
+  end if;
+end $$;
+
+-- BƯỚC 2: Tạo bảng (idempotent)
+create table if not exists public.price_list (
+  id           serial primary key,
+  sku          varchar(100) unique not null,
+  product_id   integer references public.products(id) on delete set null,
+  name         varchar(255) not null,
+  group_id     integer references public.product_groups(id) on delete set null,
+  group_name   varchar(255),
+  price        numeric(12,2) not null default 0,
+  discount     numeric(5,2)  default 0,
+  final_price  numeric(12,2),
+  stock        integer       default 0,
+  unit         varchar(20)   default 'cái',
+  note         text,
+  is_active    boolean       default true,
+  sort_order   integer       default 0,
+  created_at   timestamp     default now(),
+  updated_at   timestamp     default now()
+);
+
+-- BƯỚC 3: Index (idempotent)
+create index if not exists idx_price_list_sku    on public.price_list (sku);
+create index if not exists idx_price_list_group  on public.price_list (group_id);
+create index if not exists idx_price_list_active on public.price_list (is_active);
+
+-- BƯỚC 4: Bật RLS
+alter table public.price_list enable row level security;
+
+-- BƯỚC 5: Tạo policy (chỉ tạo nếu chưa có policy nào)
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'price_list'
+  ) then
+    execute 'create policy "allow_all_price_list"
+             on public.price_list for all
+             using (true) with check (true)';
+  end if;
+end $$;
+
+-- BƯỚC 6: Trigger updated_at (chỉ tạo nếu hàm update_updated_at đã có)
+do $$
+begin
+  if exists (select 1 from pg_proc where proname = 'update_updated_at') then
+    execute 'drop trigger if exists trg_price_list_upd on public.price_list';
+    execute 'create trigger trg_price_list_upd
+             before update on public.price_list
+             for each row execute function update_updated_at()';
+  else
+    raise notice 'Bỏ qua trigger: hàm update_updated_at chưa tồn tại (sẽ tự có khi chạy techtra_complete_schema.sql đầy đủ)';
+  end if;
+end $$;
+
+-- BƯỚC 7: Seed dữ liệu mẫu
+insert into public.price_list (sku, name, price, discount, final_price, stock, unit, sort_order)
+values
+  ('SP001', 'Nước rửa bát Techtra 750ml',  89000,  10,  80100, 100, 'chai', 1),
+  ('SP002', 'Bột giặt Techtra 3kg',        165000, 15, 140250,  60, 'túi',  2),
+  ('SP003', 'Nước lau sàn Techtra 1L',      55000,  0,  55000, 200, 'chai', 3)
+on conflict (sku) do nothing;
+
+-- BƯỚC 8: GRANT quyền cho anon / authenticated (phòng trường hợp schema public bị revoke)
+grant all privileges on table public.price_list to anon, authenticated, service_role;
+grant usage, select on sequence public.price_list_id_seq to anon, authenticated, service_role;
+
+-- BƯỚC 9: KIỂM TRA — in ra thông tin bảng
+select
+  '✅ Tổng số dòng' as info,
+  count(*)::text as value
+from public.price_list
+union all
+select
+  'Schema' as info,
+  table_schema::text as value
+from information_schema.tables
+where table_name = 'price_list' and table_schema = 'public'
+union all
+select
+  'RLS enabled' as info,
+  (select row_security_active('public.price_list')::text)
+union all
+select
+  'Policies' as info,
+  (select count(*)::text from pg_policies where tablename = 'price_list' and schemaname = 'public');
+
+-- BƯỚC 10: Reload PostgREST cache (skip if not available in standard PostgreSQL)
+do $$
+begin
+  perform pg_notify('pgrst', 'reload schema');
+exception
+  when others then
+    -- Ignore if pgrst extension is not available (standard PostgreSQL)
+    null;
+end $$;
+
+-- Đợi 5–10 giây rồi refresh trang admin (Ctrl+Shift+R).
+
+
+-- Bảng nhóm upload (hỗ trợ cây 2 cấp: cha / con)
+create table if not exists upload_groups (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  slug        text not null,
+  description text,
+  icon        text,                 -- vd: 'fas fa-spa'
+  parent_id   uuid references upload_groups(id) on delete cascade,
+  sort_order  integer not null default 0,
+  is_active   boolean not null default true,
+  display_locations text[] default '{}',  -- array: ['header_about','footer_about','footer_support']
+                                            -- rỗng = không hiện ở header/footer
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+-- Backfill: nếu bảng cũ dùng cột display_location varchar (single value) thì convert sang text[]
+do $$
+begin
+  -- Nếu cột display_locations chưa tồn tại
+  if not exists (
+    select 1 from information_schema.columns
+    where table_name = 'upload_groups' and column_name = 'display_locations'
+  ) then
+    -- Nếu có cột display_location cũ (varchar) → convert
+    if exists (
+      select 1 from information_schema.columns
+      where table_name = 'upload_groups' and column_name = 'display_location'
+    ) then
+      alter table upload_groups
+        add column display_locations text[] default '{}';
+      update upload_groups
+        set display_locations = array[display_location]
+        where display_location is not null;
+      alter table upload_groups drop column display_location;
+    else
+      alter table upload_groups
+        add column display_locations text[] default '{}';
+    end if;
+  end if;
+end$$;
+
+create index if not exists upload_groups_display_locations_gin_idx
+  on upload_groups using gin (display_locations);
+
+-- Slug là duy nhất trong phạm vi cùng 1 cha (cho phép trùng slug giữa các cha khác nhau)
+create unique index if not exists upload_groups_slug_per_parent_uidx
+  on upload_groups (parent_id, slug);
+
+-- Nếu muốn slug duy nhất TOÀN BỘ (không phân biệt cha/con), dùng cái này thay cho index trên:
+-- create unique index if not exists upload_groups_slug_uidx
+--   on upload_groups (slug);
+
+create index if not exists upload_groups_parent_id_idx
+  on upload_groups (parent_id);
+
+create index if not exists upload_groups_sort_order_idx
+  on upload_groups (sort_order);
+
+-- about_content + videos reference upload_groups → tạo sau
+create table if not exists about_content (
+  id bigint generated always as identity primary key,
+  group_id uuid unique references upload_groups(id) on delete cascade,
+  content text,
+  updated_at timestamptz default now()
+);
+
+create table if not exists videos (
+  id bigint generated always as identity primary key,
+  group_id uuid references upload_groups(id) on delete set null,
+  title text,
+  url text,
+  file_name text,
+  file_size bigint,
+  created_at timestamptz default now()
+);
+
+-- RLS + policy cho 3 bảng upload_groups / about_content / videos
+-- (Bật SAU khi cả 3 bảng + index đã tồn tại để tránh "relation does not exist")
+alter table upload_groups enable row level security;
+alter table about_content enable row level security;
+alter table videos enable row level security;
+
+drop policy if exists "Allow all for anon - upload_groups" on upload_groups;
+create policy "Allow all for anon - upload_groups"
+  on upload_groups for all
+  using (true)
+  with check (true);
+
+drop policy if exists "Allow all for anon - about_content" on about_content;
+create policy "Allow all for anon - about_content"
+  on about_content for all
+  using (true)
+  with check (true);
+
+drop policy if exists "Allow all for anon - videos" on videos;
+create policy "Allow all for anon - videos"
+  on videos for all
+  using (true)
+  with check (true);
+
+-- Tự động cập nhật updated_at mỗi khi update
+create or replace function set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+-- drop table if exists upload_group cascade;
+-- drop table if exists upload_groups cascade;
+
+drop trigger if exists trg_upload_groups_updated_at on upload_groups;
+create trigger trg_upload_groups_updated_at
+  before update on upload_groups
+  for each row
+  execute function set_updated_at();
+
+  alter table product_groups
+  add column code text;
+
+-- Nếu muốn mã nhóm là duy nhất (không trùng)
+create unique index product_groups_code_key
+  on product_groups (code)
+  where code is not null;
+
+  ALTER TABLE products
+ADD COLUMN is_bulky boolean NOT NULL DEFAULT false;
+
+ALTER TABLE products
+ADD COLUMN jt_services text[] DEFAULT '{}';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Migration: Thêm cấu hình "Banner popup thông báo" vào bảng homepage_config
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Mục đích: lưu cấu hình modal popup hiện khi khách vào trang chủ
+-- (bật/tắt, tiêu đề, ảnh, link, số ngày ẩn khi khách bấm "Không hiển thị lại").
+--
+-- Giả định bảng homepage_config đã tồn tại với các cột dạng jsonb tương tự
+-- background / hero / sections / flash_sale (theo đúng pattern các cột cũ).
+-- Nếu tên cột/bảng thực tế khác, chỉnh lại cho khớp trước khi chạy.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- 1) Thêm cột popup (jsonb) nếu chưa có, kèm giá trị mặc định
+ALTER TABLE homepage_config
+  ADD COLUMN IF NOT EXISTS popup jsonb NOT NULL DEFAULT jsonb_build_object(
+    'enabled', false,
+    'title', 'THÔNG BÁO',
+    'imageUrl', '',
+    'link', '',
+    'dontShowDays', 7
+  );
+
+-- 2) Với các dòng cấu hình đã tồn tại từ trước khi có cột này, đảm bảo popup
+--    không bị NULL (phòng trường hợp cột được thêm bằng cách khác không có
+--    DEFAULT, hoặc dữ liệu cũ bị null hoá thủ công).
+UPDATE homepage_config
+SET popup = jsonb_build_object(
+  'enabled', false,
+  'title', 'THÔNG BÁO',
+  'imageUrl', '',
+  'link', '',
+  'dontShowDays', 7
 )
-VALUES
-  (1, 'Cà phê Arabica Đà Lạt 500g', 'ca-phe-arabica-da-lat-500g', 'Hạt Arabica rang mộc, hậu vị chua thanh.', 1, 'Cà phê', 185000, 215000, 14.00, 120, 'CF-ARA-500', 500, 'g', 20, 8, 6, ARRAY['https://images.unsplash.com/photo-1495474472287-4d71bcdd2085'], 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085', NULL, TRUE, 'default', 'active', TRUE, 4.80, 124, TRUE, 72, 18.00, NOW() + INTERVAL '3 days'),
-  (2, 'Cà phê Robusta Buôn Ma Thuột 1kg', 'ca-phe-robusta-bmt-1kg', 'Robusta đậm vị, phù hợp pha phin truyền thống.', 1, 'Cà phê', 239000, 279000, 10.00, 80, 'CF-ROB-1KG', 1000, 'g', 24, 10, 8, ARRAY['https://images.unsplash.com/photo-1509042239860-f550ce710b93'], 'https://images.unsplash.com/photo-1509042239860-f550ce710b93', NULL, TRUE, 'default', 'active', TRUE, 4.70, 96, FALSE, 64, 12.00, NOW() + INTERVAL '1 day'),
-  (3, 'Trà hoa cúc mật ong 200g', 'tra-hoa-cuc-mat-ong-200g', 'Trà dịu nhẹ, thanh mát, phù hợp buổi tối.', 2, 'Trà', 129000, 149000, 8.00, 200, 'TR-HC-200', 200, 'g', 15, 7, 4, ARRAY['https://images.unsplash.com/photo-1464306076886-da185f6a9d05'], 'https://images.unsplash.com/photo-1464306076886-da185f6a9d05', NULL, TRUE, 'default', 'active', TRUE, 4.90, 221, TRUE, 80, 20.00, NOW() + INTERVAL '5 days'),
-  (4, 'Trà gừng sả 250g', 'tra-gung-sa-250g', 'Giữ ấm cơ thể, thơm mùi sả tự nhiên.', 2, 'Trà', 115000, 139000, 7.00, 150, 'TR-GS-250', 250, 'g', 16, 7, 4, ARRAY['https://images.unsplash.com/photo-1515823662972-da6a2e4d3002'], 'https://images.unsplash.com/photo-1515823662972-da6a2e4d3002', NULL, TRUE, 'default', 'active', TRUE, 4.60, 88, FALSE, 58, 0.00, NULL),
-  (5, 'Combo quà Tết Techtra', 'combo-qua-tet-techtra', 'Gồm 3 sản phẩm premium đóng gói quà.', 3, 'Combo', 499000, 599000, 16.00, 40, 'CB-TET-001', 1800, 'g', 30, 25, 12, ARRAY['https://images.unsplash.com/photo-1514866747592-c2d279258a9f'], 'https://images.unsplash.com/photo-1514866747592-c2d279258a9f', NULL, TRUE, 'default', 'active', TRUE, 4.95, 45, TRUE, 52, 22.00, NOW() + INTERVAL '2 days'),
-  (6, 'Gift Box Premium', 'gift-box-premium', 'Set quà tặng doanh nghiệp.', 3, 'Combo', 799000, 890000, 10.00, 25, 'CB-PRM-001', 2200, 'g', 35, 28, 14, ARRAY['https://images.unsplash.com/photo-1513889961551-628c1e5e2ee9'], 'https://images.unsplash.com/photo-1513889961551-628c1e5e2ee9', NULL, TRUE, 'default', 'active', TRUE, 4.85, 37, FALSE, 41, 15.00, NOW() + INTERVAL '6 hours'),
-  (7, 'Cold Brew Bottle 500ml', 'cold-brew-bottle-500ml', 'Cà phê ủ lạnh tiện lợi.', 5, 'Cà phê', 69000, 79000, 6.00, 300, 'CF-CB-500', 500, 'ml', 20, 7, 7, ARRAY['https://images.unsplash.com/photo-1461023058943-07fcbe16d735'], 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735', NULL, TRUE, 'default', 'active', TRUE, 4.40, 63, TRUE, 67, 0.00, NULL),
-  (8, 'Trà detox bạc hà', 'tra-detox-bac-ha', 'Hỗ trợ thanh lọc cơ thể.', 2, 'Trà', 99000, 119000, 5.00, 175, 'TR-DTX-001', 180, 'g', 14, 6, 4, ARRAY['https://images.unsplash.com/photo-1507914464562-6ff4ac29692f'], 'https://images.unsplash.com/photo-1507914464562-6ff4ac29692f', NULL, TRUE, 'default', 'active', TRUE, 4.55, 71, FALSE, 49, 10.00, NOW() - INTERVAL '1 day')
-ON CONFLICT (slug) DO UPDATE
-SET name = EXCLUDED.name,
-    description = EXCLUDED.description,
-    group_id = EXCLUDED.group_id,
-    category = EXCLUDED.category,
-    price = EXCLUDED.price,
-    old_price = EXCLUDED.old_price,
-    discount = EXCLUDED.discount,
-    stock = EXCLUDED.stock,
-    sku = EXCLUDED.sku,
-    images = EXCLUDED.images,
-    image_url = EXCLUDED.image_url,
-    cod_enabled = EXCLUDED.cod_enabled,
-    shipping_type = EXCLUDED.shipping_type,
-    status = EXCLUDED.status,
-    is_active = EXCLUDED.is_active,
-    rating = EXCLUDED.rating,
-    reviews = EXCLUDED.reviews,
-    is_new = EXCLUDED.is_new,
-    percent_sold = EXCLUDED.percent_sold,
-    flash_sale_discount = EXCLUDED.flash_sale_discount,
-    flash_sale_end_at = EXCLUDED.flash_sale_end_at;
+WHERE popup IS NULL;
 
--- Dịch vụ vận chuyển mẫu
-CREATE TABLE IF NOT EXISTS product_shipping_services (
-  id           SERIAL PRIMARY KEY,
-  product_id   INTEGER REFERENCES products(id) ON DELETE CASCADE,
-  service_code VARCHAR(20) NOT NULL,
-  service_name VARCHAR(100),
-  is_active    BOOLEAN DEFAULT TRUE
-);
+-- 3) Comment mô tả cột để dễ tra cứu trong Supabase Studio
+COMMENT ON COLUMN homepage_config.popup IS
+  'Cấu hình popup thông báo hiện khi khách vào trang chủ: {enabled, title, imageUrl, link, dontShowDays}';
 
-INSERT INTO product_shipping_services (product_id, service_code, service_name, is_active)
-VALUES
-  (1, 'EZ', 'J&T EZ', TRUE),
-  (1, 'FAST', 'J&T FAST', TRUE),
-  (2, 'EZ', 'J&T EZ', TRUE),
-  (3, 'EZ', 'J&T EZ', TRUE),
-  (5, 'SUPER', 'J&T SUPER', TRUE)
-ON CONFLICT DO NOTHING;
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Storage: ảnh popup được upload qua homepageApi.uploadFile(file, "popup")
+-- và dùng chung bucket/policy với các ảnh khác của trang chủ (background,
+-- hero, promo, blog...). Nếu bucket đó đã có policy cho phép admin ghi và
+-- public đọc theo prefix chung, KHÔNG cần thêm policy riêng cho "popup".
+--
+-- Nếu bucket của bạn giới hạn theo whitelist từng subfolder cụ thể (ví dụ
+-- chỉ cho phép 'background/', 'hero/', 'promo/', 'blog/'), thêm 'popup/' vào
+-- danh sách đó. Ví dụ mẫu (CHỈNH LẠI tên bucket + policy cho khớp thực tế):
+--
+-- create policy "Cho phép đọc public ảnh popup"
+--   on storage.objects for select
+--   using (bucket_id = 'homepage' and (storage.foldername(name))[1] = 'popup');
+--
+-- create policy "Cho phép admin upload ảnh popup"
+--   on storage.objects for insert
+--   with check (bucket_id = 'homepage' and (storage.foldername(name))[1] = 'popup');
+-- ═══════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE product_groups
+ADD COLUMN is_sale BOOLEAN DEFAULT FALSE;
+
+
+-- -- =============================================================
+-- -- Migration: J&T Express integration
+-- -- Chạy 1 lần trên Supabase SQL Editor
+-- -- Thêm cột vận đơn J&T vào orders + cập nhật view v_orders_full
+-- -- =============================================================
+-- --
+-- -- Phụ thuộc:
+-- --   - bảng orders(id, order_code, status, ...) — đã có
+-- --   - view v_orders_full — đã có (sẽ CREATE OR REPLACE)
+-- --
+-- -- Cột mới:
+-- --   jt_bill_code      — mã vận đơn J&T trả về
+-- --   jt_waybill_no     — mã vận đơn nội bộ Techtra
+-- --   jt_tracking_url   — URL tracking công khai
+-- --   jt_service_code   — '01'=EZ, '02'=STD, '03'=FAST
+-- --   jt_weight_grams   — trọng lượng đã gửi J&T
+-- --   jt_shipping_fee   — phí J&T tính được
+-- --   jt_status         — trạng thái J&T (created/pickup/transit/delivered/cancelled)
+-- --   jt_last_trace     — lần tra cứu cuối (jsonb)
+-- --   jt_created_at     — lúc tạo vận đơn
+-- --   jt_pickup_id      — ID lệnh pickup
+-- --   jt_cancel_reason  — lý do huỷ
+-- -- =============================================================
+
+
+-- -- =============================================================
+-- -- 1. Thêm cột tracking vận đơn
+-- -- =============================================================
+-- alter table orders
+--   add column if not exists jt_bill_code      varchar(100),
+--   add column if not exists jt_waybill_no    varchar(100),
+--   add column if not exists jt_tracking_url  text,
+--   add column if not exists jt_service_code  varchar(10)  default '01',
+--   add column if not exists jt_weight_grams  integer,
+--   add column if not exists jt_shipping_fee  numeric(12,2) default 0,
+--   add column if not exists jt_status        varchar(50),
+--   add column if not exists jt_last_trace    jsonb,
+--   add column if not exists jt_created_at    timestamp,
+--   add column if not exists jt_pickup_id     varchar(100),
+--   add column if not exists jt_cancel_reason text;
+
+-- -- Index để tra cứu nhanh theo billCode
+-- create index if not exists idx_orders_jt_bill on orders(jt_bill_code);
+-- create index if not exists idx_orders_jt_status on orders(jt_status);
+
+-- -- Comment giúp admin hiểu cột khi xem schema
+-- comment on column orders.jt_bill_code     is 'Mã vận đơn J&T trả về (billCode/waybillNo)';
+-- comment on column orders.jt_service_code  is 'Mã dịch vụ J&T: 01=EZ, 02=STD, 03=FAST';
+-- comment on column orders.jt_status        is 'Trạng thái vận đơn: created / pickup / transit / delivered / cancelled';
+-- comment on column orders.jt_tracking_url  is 'URL tra cứu công khai từ J&T';
+-- comment on column orders.jt_last_trace    is 'Lần trace cuối (jsonb) — lưu response từ jtTraceOrder';
+
+
+-- -- =============================================================
+-- -- 2. Cập nhật view v_orders_full
+-- --    Thêm 4 cột J&T + 1 cột derived jt_status_label
+-- -- =============================================================
+-- -- Lưu ý: view này được khai báo ở migration_loyalty_and_orders.sql dòng 249.
+-- -- CREATE OR REPLACE này sẽ overwrite view cũ. Nếu sau này view bị sửa thêm,
+-- -- cần cập nhật cả 2 chỗ.
+-- create or replace view v_orders_full as
+-- select
+--   o.id,
+--   o.order_code,
+--   o.customer_id,
+--   coalesce(o.customer_name, c.name)    as customer_name,
+--   coalesce(o.customer_phone, c.phone)  as customer_phone,
+--   c.email                              as customer_email,
+
+--   o.address,
+--   o.province,
+--   o.district,
+--   o.ward,
+
+--   o.total_price,
+--   o.shipping_fee,
+--   o.discount_amount,
+--   o.final_price,
+
+--   o.payment_method,
+--   o.payment_status,
+--   o.status,
+--   o.note,
+
+--   -- Số lượng item + số SP
+--   coalesce(items.item_count, 0)        as item_count,
+--   coalesce(items.total_qty, 0)         as total_qty,
+
+--   o.created_at,
+--   o.updated_at,
+
+--   -- Trạng thái COD: nếu payment_method='cod' và status='done' → đã nhận hàng thành công
+--   case
+--     when o.payment_method = 'cod' and o.status = 'done' then true
+--     else false
+--   end                                   as cod_delivered_success,
+
+--   -- ═══════ J&T Express ═══════
+--   o.jt_bill_code,
+--   o.jt_waybill_no,
+--   o.jt_tracking_url,
+--   o.jt_service_code,
+--   o.jt_weight_grams,
+--   o.jt_shipping_fee,
+--   o.jt_status,
+--   o.jt_last_trace,
+--   o.jt_created_at,
+--   o.jt_pickup_id,
+--   o.jt_cancel_reason,
+
+--   -- Cột derived: giải mã jt_status sang text tiếng Việt
+--   case o.jt_status
+--     when 'created'   then 'Đã tạo vận đơn'
+--     when 'pickup'    then 'Đã lấy hàng'
+--     when 'transit'   then 'Đang vận chuyển'
+--     when 'delivered' then 'Đã giao hàng'
+--     when 'cancelled' then 'Đã huỷ vận đơn'
+--     when 'returned'  then 'Hoàn hàng'
+--     when null        then 'Chưa gửi J&T'
+--     else o.jt_status
+--   end                                   as jt_status_label,
+
+--   -- Flag tiện: đã có billCode J&T chưa
+--   (o.jt_bill_code is not null)          as has_jt_order
+
+-- from orders o
+-- left join customers c on c.id = o.customer_id
+-- left join (
+--   select
+--     order_id,
+--     count(*)            as item_count,
+--     sum(quantity)       as total_qty
+--   from order_items
+--   group by order_id
+-- ) items on items.order_id = o.id;
+
+-- comment on view v_orders_full is 'Đơn hàng full data + flag cod_delivered_success + cột J&T (jt_bill_code, jt_status, jt_tracking_url, has_jt_order, jt_status_label). Admin donhang SELECT từ đây.';
+
+
+-- -- =============================================================
+-- -- 3. RLS: site_settings đã được enable RLS ở migration_loyalty_and_orders.sql.
+-- --    Policy hiện tại:
+-- --      - service_role: ALL (full quyền)
+-- --      - anon/authenticated: SELECT
+-- --    → Cần thêm policy cho phép admin (anon) INSERT/UPDATE để lưu config J&T.
+-- -- =============================================================
+-- drop policy if exists p_anon_write_site_settings on site_settings;
+-- create policy p_anon_write_site_settings
+--   on site_settings for insert to anon, authenticated with check (true);
+
+-- drop policy if exists p_anon_update_site_settings on site_settings;
+-- create policy p_anon_update_site_settings
+--   on site_settings for update to anon, authenticated using (true) with check (true);
+
 
 -- =============================================================
--- 4) HOMEPAGE DATA
+-- 4. Smoke test
+-- =============================================================
+-- select column_name, data_type
+-- from information_schema.columns
+-- where table_name = 'orders'
+--   and column_name like 'jt_%'
+-- order by column_name;
+
+-- select * from v_orders_full limit 1;
+
+
+-- =============================================================
+-- Migration: Voucher public (cho tất cả KH)
+-- Chạy 1 lần trên Supabase SQL Editor
+-- Thêm cột is_public vào customer_vouchers
+-- =============================================================
+--
+-- Mục đích: cho phép tạo voucher "public" — KHÔNG gắn với customer_id
+-- cụ thể, bất kỳ ai nhập code khi checkout cũng dùng được.
+-- Voucher cá nhân (rank silver/gold/platinum) giữ nguyên is_public=false.
 -- =============================================================
 
-CREATE TABLE IF NOT EXISTS homepage_config (
-  id         INTEGER PRIMARY KEY,
-  background JSONB,
-  hero       JSONB,
-  sections   JSONB,
-  flash_sale JSONB,
-  updated_at TIMESTAMP DEFAULT NOW()
+-- Đảm bảo bảng tồn tại trước khi alter (idempotent cho migration
+-- chạy trước khi §25 tạo schema đầy đủ).
+create table if not exists customer_vouchers (
+  id             serial primary key,
+  customer_id    bigint references customers(id) on delete cascade,
+  code           text,
+  discount       numeric,
+  discount_type  text,
+  discount_value numeric,
+  min_order      numeric,
+  max_discount   numeric,
+  rank           text,
+  is_active      boolean default true,
+  is_public      boolean default false,
+  note           text,
+  source         text,
+  used_at        timestamptz,
+  issued_at      timestamptz default now(),
+  expires_at     timestamptz,
+  created_at     timestamptz default now()
+);
+create index if not exists idx_customer_vouchers_code
+  on customer_vouchers (code);
+
+
+-- =============================================================
+-- 1. Thêm cột is_public
+-- =============================================================
+alter table customer_vouchers
+  add column if not exists is_public boolean default false;
+
+-- Cho phép customer_id NULL (voucher public không gắn với KH cụ thể)
+alter table customer_vouchers
+  alter column customer_id drop not null;
+
+-- Index tìm voucher public nhanh theo code
+create index if not exists idx_customer_vouchers_public
+  on customer_vouchers (code)
+  where is_public = true and is_active = true;
+
+-- Comment
+comment on column customer_vouchers.is_public is
+  'TRUE: voucher public (customer_id IS NULL), ai cũng nhập code dùng được. FALSE: voucher cá nhân (gắn với customer_id).';
+
+-- Rank NULL được phép với voucher public
+alter table customer_vouchers
+  alter column rank drop not null;
+
+
+-- =============================================================
+-- 2. View hỗ trợ: v_active_vouchers
+--    Liệt kê voucher còn hạn + chưa dùng, kèm thông tin KH (nếu có)
+-- =============================================================
+create or replace view v_active_vouchers as
+select
+  v.id,
+  v.code,
+  v.is_public,
+  v.rank,
+  v.discount_type,
+  v.discount_value,
+  v.min_order,
+  v.max_discount,
+  v.expires_at,
+  v.issued_at,
+  v.used_at,
+  v.is_active,
+  v.note,
+  v.customer_id,
+  c.name                            as customer_name,
+  c.phone                           as customer_phone,
+  c.email                           as customer_email,
+  case
+    when v.used_at is not null then 'used'
+    when v.expires_at is not null and v.expires_at < now() then 'expired'
+    when v.is_active = false then 'inactive'
+    else 'active'
+  end                               as status
+from customer_vouchers v
+left join customers c on c.id = v.customer_id
+where v.is_active = true;
+
+comment on view v_active_vouchers is
+  'Voucher còn hạn + chưa dùng (status: active/used/expired/inactive). Bao gồm cả voucher public (customer_id IS NULL).';
+
+
+-- =============================================================
+-- 3. RLS: customer_vouchers đã có policy
+--    Thêm policy cho phép anon SELECT voucher (để shop checkout validate code)
+-- =============================================================
+drop policy if exists p_anon_read_vouchers on customer_vouchers;
+create policy p_anon_read_vouchers
+  on customer_vouchers for select to anon, authenticated using (true);
+
+
+-- =============================================================
+-- 4. Smoke test
+-- =============================================================
+-- select column_name, data_type, is_nullable
+-- from information_schema.columns
+-- where table_name = 'customer_vouchers'
+-- order by ordinal_position;
+--
+-- select * from v_active_vouchers limit 5;
+
+
+-- =============================================================
+-- Migration: Khách hàng thân thiết + Quản lý đơn hàng
+-- Chạy 1 lần trên Supabase SQL Editor sau khi đã có schema
+-- customers / orders / order_items (xem techtra_full_schema.sql §5, §6)
+-- =============================================================
+--
+-- Phụ thuộc:
+--   - bảng customers(id, name, email, phone)              ← đã có
+--   - bảng orders(id, customer_id, status, final_price)    ← đã có
+--   - bảng order_items(id, order_id, product_id, quantity) ← đã có
+--   - bảng products(id, name, slug)                        ← đã có
+--   - bảng categories hoặc product_groups                  ← không bắt buộc
+--
+-- Nguyên tắc:
+--   • KHÔNG sửa schema customers/orders/order_items — chỉ thêm bảng phụ.
+--   • Một KH có thể có SĐT hoặc Email (1 trong 2 có thể NULL).
+--   • Tổng tiền chỉ tính khi orders.status = 'done' (nhận hàng thành công).
+--     Riêng đơn ship COD: chỉ tính khi đã nhận hàng thành công.
+--   • Tất cả tính toán tổng hợp (LTV, AOV, list SP) chạy bằng VIEW —
+--     admin dashboard đọc VIEW, không cần trigger phức tạp.
+-- =============================================================
+
+
+-- =============================================================
+-- 1. customer_stats
+--    Mỗi KH 1 dòng. Lưu tổng hợp từ các đơn 'done'.
+--    Có thể dùng trigger để cập nhật, hoặc refresh bằng job.
+-- =============================================================
+create table if not exists customer_stats (
+  customer_id        integer primary key
+                       references customers(id) on delete cascade,
+
+  -- Đếm tổng quan
+  total_orders       integer     default 0,             -- số đơn done
+  total_products     integer     default 0,             -- tổng số SP đã mua (sum quantity)
+  cancelled_orders   integer     default 0,             -- số đơn bị huỷ
+
+  -- Tài chính
+  ltv                numeric(14,2) default 0,           -- Lifetime Value (tổng final_price các đơn done)
+  aov                numeric(14,2) default 0,           -- Average Order Value (ltv / total_orders)
+
+  -- List sản phẩm đã mua (JSONB): [{ product_id, name, slug, qty, last_buy_at }]
+  purchased_products jsonb        default '[]'::jsonb,
+
+  -- Tracking
+  first_purchase_at  timestamptz,
+  last_purchase_at   timestamptz,
+
+  updated_at         timestamptz default now()
 );
 
-CREATE TABLE IF NOT EXISTS homepage_values (
-  id          SERIAL PRIMARY KEY,
-  icon        VARCHAR(100),
-  title       VARCHAR(255) NOT NULL,
-  description TEXT,
-  sort_order  INTEGER DEFAULT 0,
-  enabled     BOOLEAN DEFAULT TRUE
+comment on table  customer_stats is 'Tổng hợp KH thân thiết: số đơn, tổng SP, LTV, AOV, list SP đã mua. Refresh qua view + cron/RPC.';
+comment on column customer_stats.ltv  is 'Tổng tiền đã chi (chỉ tính đơn status=done)';
+comment on column customer_stats.aov  is 'LTV / total_orders';
+comment on column customer_stats.purchased_products is 'JSONB: mỗi phần tử {product_id, name, slug, qty, last_buy_at}';
+
+
+-- =============================================================
+-- 2. customer_vouchers
+--    Voucher phát cho KH thân thiết. Khi bật rank (loyalty_enabled)
+--    sẽ tự động insert vào đây.
+-- =============================================================
+create table if not exists customer_vouchers (
+  id            serial primary key,
+  customer_id   integer     not null references customers(id) on delete cascade,
+
+  code          varchar(50) unique,                     -- Mã voucher (VD: TC-VIP-...)
+  rank          varchar(20) default 'bronze',           -- 'bronze'|'silver'|'gold'|'platinum'
+  discount_type varchar(20) default 'percent',          -- 'percent'|'fixed'
+  discount_value numeric(10,2) default 0,
+  min_order     numeric(12,2) default 0,
+  max_discount  numeric(12,2),
+
+  -- Thời hạn
+  issued_at     timestamptz default now(),
+  expires_at    timestamptz,
+  used_at       timestamptz,
+  order_id      integer     references orders(id) on delete set null,
+
+  -- Trạng thái
+  is_active     boolean     default true,
+  note          text
 );
 
-CREATE TABLE IF NOT EXISTS homepage_promo_banners (
-  id          SERIAL PRIMARY KEY,
-  position    VARCHAR(20),
-  tag         VARCHAR(120),
-  title       VARCHAR(255),
-  image_url   TEXT,
-  cta_text    VARCHAR(100),
-  cta_link    TEXT,
-  sort_order  INTEGER DEFAULT 0,
-  enabled     BOOLEAN DEFAULT TRUE
+create index if not exists idx_customer_vouchers_customer
+  on customer_vouchers (customer_id);
+create index if not exists idx_customer_vouchers_active
+  on customer_vouchers (is_active, expires_at)
+  where is_active = true;
+
+comment on table customer_vouchers is 'Voucher phát cho khách thân thiết (khi loyalty_enabled=true)';
+
+
+-- =============================================================
+-- 3. site_settings (key/value linh hoạt)
+--    Công tắc bật/tắt rank + ngưỡng tier.
+--    Admin đổi bằng cách UPDATE key.
+-- =============================================================
+create table if not exists site_settings (
+  key         varchar(100) primary key,
+  value       text,
+  value_json  jsonb,                                    -- Dùng cho cấu hình dạng object
+  description text,
+  updated_at  timestamptz default now()
 );
 
-CREATE TABLE IF NOT EXISTS homepage_blog (
-  id          SERIAL PRIMARY KEY,
-  title       VARCHAR(255) NOT NULL,
-  description TEXT,
-  author      VARCHAR(120),
-  image_url   TEXT,
-  link        TEXT,
-  sort_order  INTEGER DEFAULT 0,
-  enabled     BOOLEAN DEFAULT TRUE,
-  created_at  TIMESTAMP DEFAULT NOW()
+comment on table site_settings is 'Cấu hình hệ thống key/value. Công tắc bật rank khách thân thiết: key=loyalty_enabled';
+
+-- Seed các key mặc định
+insert into site_settings (key, value, value_json, description) values
+  ('loyalty_enabled', 'false', null,
+    'Bật/tắt chương trình khách thân thiết (true=hiện rank + auto-issue voucher)'),
+
+  ('loyalty_tier_thresholds', null,
+   '{
+      "bronze":   { "min_ltv": 0,       "voucher": null },
+      "silver":   { "min_ltv": 2000000, "voucher": { "type":"percent","value":5,  "min_order":500000, "max_discount":100000 } },
+      "gold":     { "min_ltv": 5000000, "voucher": { "type":"percent","value":10, "min_order":1000000,"max_discount":300000 } },
+      "platinum": { "min_ltv": 10000000,"voucher": { "type":"percent","value":15, "min_order":0,      "max_discount":500000 } }
+    }'::jsonb,
+    'Ngưỡng LTV cho từng hạng + quà tặng voucher khi đạt hạng'),
+
+  ('loyalty_only_done_orders', 'true', null,
+    'Chỉ tính đơn status=done vào LTV (true). Nếu false: tính cả đơn confirmed/shipping.'),
+
+  ('loyalty_min_orders_for_rank', '1', null,
+    'Số đơn done tối thiểu để được xét hạng (mặc định 1)'),
+
+  ('loyalty_voucher_valid_days', '30', null,
+    'Voucher có hiệu lực bao nhiêu ngày kể từ khi phát')
+on conflict (key) do nothing;
+
+
+-- =============================================================
+-- 4. VIEW: v_customer_loyalty
+--    Tổng hợp KH + stats + rank (tính real-time từ orders).
+--    Admin all-customers sẽ SELECT từ VIEW này.
+-- =============================================================
+create or replace view v_customer_loyalty as
+with order_done as (
+  select
+    o.customer_id,
+    count(*)                                              as done_orders,
+    coalesce(sum(o.final_price), 0)                       as ltv_raw,
+    coalesce(sum(oi.quantity), 0)                         as products_qty,
+    max(o.created_at)                                     as last_buy,
+    min(o.created_at)                                     as first_buy,
+    jsonb_agg(
+      jsonb_build_object(
+        'order_id',     o.id,
+        'order_code',   o.order_code,
+        'final_price',  o.final_price,
+        'completed_at', o.updated_at
+      ) order by o.updated_at desc
+    ) filter (where o.id is not null)                     as orders_json
+  from orders o
+  left join order_items oi on oi.order_id = o.id
+  where o.status = 'done'
+  group by o.customer_id
+),
+order_cancelled as (
+  select customer_id, count(*) as cancel_count
+  from orders
+  where status = 'cancelled'
+  group by customer_id
+),
+purchased as (
+  -- List sản phẩm đã mua (gom theo customer → product)
+  select
+    customer_id,
+    jsonb_agg(
+      jsonb_build_object(
+        'product_id',   product_id,
+        'name',         name,
+        'slug',         slug,
+        'image_url',    image_url,
+        'qty',          qty,
+        'last_buy_at',  last_buy_at
+      )
+      order by last_buy_at desc
+    ) as products_json
+  from (
+    select
+      o.customer_id,
+      p.id          as product_id,
+      p.name        as name,
+      p.slug        as slug,
+      p.image_url   as image_url,
+      sum(oi.quantity)           as qty,
+      max(o.created_at)          as last_buy_at
+    from orders o
+    join order_items oi on oi.order_id = o.id
+    join products   p  on p.id = oi.product_id
+    where o.status = 'done' and p.id is not null
+    group by o.customer_id, p.id, p.name, p.slug, p.image_url
+  ) inner_purchased
+  group by customer_id
+)
+select
+  c.id                              as customer_id,
+  c.name                            as customer_name,
+  c.email,
+  c.phone,
+  -- Theo yêu cầu: email hoặc phone có thể NULL — vẫn show
+  case
+    when c.phone is not null and c.email is not null then c.phone || ' / ' || c.email
+    when c.phone is not null then c.phone
+    when c.email is not null then c.email
+    else '(chưa có SĐT/Email)'
+  end                               as contact,
+  coalesce(od.done_orders, 0)       as total_orders,
+  coalesce(od.products_qty, 0)       as total_products,
+  coalesce(oc.cancel_count, 0)      as cancelled_orders,
+  coalesce(od.ltv_raw, 0)           as ltv,
+  case
+    when coalesce(od.done_orders, 0) > 0
+      then round(od.ltv_raw / od.done_orders, 2)
+    else 0
+  end                               as aov,
+  coalesce(p.products_json, '[]'::jsonb) as purchased_products,
+  od.first_buy                      as first_purchase_at,
+  od.last_buy                       as last_purchase_at,
+  c.is_active,
+  c.created_at                      as customer_since,
+  -- Rank: tính theo ngưỡng trong site_settings
+  case
+    when coalesce(od.ltv_raw, 0) >= 10000000 then 'platinum'
+    when coalesce(od.ltv_raw, 0) >=  5000000 then 'gold'
+    when coalesce(od.ltv_raw, 0) >=  2000000 then 'silver'
+    else 'bronze'
+  end                               as rank,
+  -- Công tắc: có nên hiện rank không?
+  coalesce(
+    (select value from site_settings where key = 'loyalty_enabled'),
+    'false'
+  )                                 as loyalty_enabled
+from customers c
+left join order_done        od on od.customer_id = c.id
+left join order_cancelled   oc on oc.customer_id = c.id
+left join purchased          p on p.customer_id = c.id;
+
+comment on view v_customer_loyalty is 'Tổng hợp KH + LTV + AOV + rank. Đọc real-time từ orders, không cần trigger. Admin all-customers SELECT từ đây.';
+
+
+-- =============================================================
+-- 5. VIEW: v_orders_full
+--    Đơn hàng full data cho admin donhang. Join KH + items.
+--    Comment out: chưa có cột jt_*, payment_code ở thời điểm này.
+--    View sẽ được CREATE OR REPLACE lại ở §26 (migration J&T) sau khi
+--    ALTER TABLE orders ADD COLUMN jt_* xong.
+-- =============================================================
+-- create or replace view v_orders_full as
+-- select
+--   ...
+-- ;
+--
+-- comment on view v_orders_full is 'Đơn hàng full data + flag cod_delivered_success. Admin donhang SELECT từ đây.';
+
+
+-- =============================================================
+-- 6. FUNCTION + TRIGGER: refresh customer_stats khi đơn done/cancel
+--    Mỗi khi orders.status chuyển sang 'done' hoặc 'cancelled',
+--    cập nhật lại customer_stats cho KH đó.
+-- =============================================================
+create or replace function fn_refresh_customer_stats(p_customer_id integer)
+returns void
+language plpgsql
+as $$
+declare
+  v_orders      integer;
+  v_products    integer;
+  v_cancelled   integer;
+  v_ltv         numeric(14,2);
+  v_aov         numeric(14,2);
+  v_first       timestamptz;
+  v_last        timestamptz;
+  v_purchased   jsonb;
+begin
+  -- Đếm đơn done + tổng tiền + tổng SP
+  select
+    count(*),
+    coalesce(sum(oi.quantity), 0),
+    coalesce(sum(o.final_price), 0),
+    min(o.created_at),
+    max(o.created_at)
+  into v_orders, v_products, v_ltv, v_first, v_last
+  from orders o
+  left join order_items oi on oi.order_id = o.id
+  where o.customer_id = p_customer_id and o.status = 'done';
+
+  -- Đếm đơn huỷ
+  select count(*) into v_cancelled
+  from orders
+  where customer_id = p_customer_id and status = 'cancelled';
+
+  -- AOV
+  v_aov := case when v_orders > 0 then round(v_ltv / v_orders, 2) else 0 end;
+
+  -- List sản phẩm JSONB
+  select coalesce(jsonb_agg(x order by (x->>'last_buy_at') desc), '[]'::jsonb)
+  into v_purchased
+  from (
+    select jsonb_build_object(
+      'product_id',   product_id,
+      'name',         name,
+      'slug',         slug,
+      'image_url',    image_url,
+      'qty',          qty,
+      'last_buy_at',  last_buy_at
+    ) as x
+    from (
+      select
+        p.id          as product_id,
+        p.name        as name,
+        p.slug        as slug,
+        p.image_url   as image_url,
+        sum(oi.quantity)           as qty,
+        to_char(max(o.created_at), 'YYYY-MM-DD"T"HH24:MI:SSOF') as last_buy_at
+      from orders o
+      join order_items oi on oi.order_id = o.id
+      join products   p  on p.id = oi.product_id
+      where o.customer_id = p_customer_id and o.status = 'done'
+      group by p.id, p.name, p.slug, p.image_url
+    ) inner_prod
+  ) t;
+
+  -- Upsert
+  insert into customer_stats
+    (customer_id, total_orders, total_products, cancelled_orders, ltv, aov,
+     purchased_products, first_purchase_at, last_purchase_at, updated_at)
+  values
+    (p_customer_id, coalesce(v_orders,0), coalesce(v_products,0),
+     coalesce(v_cancelled,0), coalesce(v_ltv,0), coalesce(v_aov,0),
+     v_purchased, v_first, v_last, now())
+  on conflict (customer_id) do update set
+    total_orders       = excluded.total_orders,
+    total_products     = excluded.total_products,
+    cancelled_orders   = excluded.cancelled_orders,
+    ltv                = excluded.ltv,
+    aov                = excluded.aov,
+    purchased_products = excluded.purchased_products,
+    first_purchase_at  = excluded.first_purchase_at,
+    last_purchase_at   = excluded.last_purchase_at,
+    updated_at         = excluded.updated_at;
+end;
+$$;
+
+create or replace function fn_orders_after_change()
+returns trigger
+language plpgsql
+as $$
+begin
+  -- Chỉ refresh khi status thay đổi / insert / delete
+  if (tg_op = 'INSERT' or tg_op = 'DELETE') then
+    if new.customer_id is not null then
+      perform fn_refresh_customer_stats(new.customer_id);
+    elsif old.customer_id is not null then
+      perform fn_refresh_customer_stats(old.customer_id);
+    end if;
+  elsif (tg_op = 'UPDATE' and (old.status is distinct from new.status)) then
+    if new.customer_id is not null then
+      perform fn_refresh_customer_stats(new.customer_id);
+    end if;
+    if old.customer_id is not null and old.customer_id is distinct from new.customer_id then
+      perform fn_refresh_customer_stats(old.customer_id);
+    end if;
+  end if;
+  return coalesce(new, old);
+end;
+$$;
+
+drop trigger if exists trg_orders_refresh_stats on orders;
+create trigger trg_orders_refresh_stats
+  after insert or update or delete on orders
+  for each row execute function fn_orders_after_change();
+
+
+-- =============================================================
+-- 7. RLS Policies (Supabase)
+--    Bật RLS + cho phép anon đọc VIEW (admin đọc qua service_role)
+-- =============================================================
+alter table customer_stats     enable row level security;
+alter table customer_vouchers  enable row level security;
+alter table site_settings      enable row level security;
+
+-- Cho phép service_role (admin) đọc/ghi tất cả
+drop policy if exists p_service_all_customer_stats    on customer_stats;
+drop policy if exists p_service_all_customer_vouchers on customer_vouchers;
+drop policy if exists p_service_all_site_settings     on site_settings;
+
+create policy p_service_all_customer_stats
+  on customer_stats for all to service_role using (true) with check (true);
+create policy p_service_all_customer_vouchers
+  on customer_vouchers for all to service_role using (true) with check (true);
+create policy p_service_all_site_settings
+  on site_settings for all to service_role using (true) with check (true);
+
+-- Cho phép anon/authenticated đọc (frontend có thể xem rank nếu cần)
+drop policy if exists p_anon_read_site_settings on site_settings;
+create policy p_anon_read_site_settings
+  on site_settings for select to anon, authenticated using (true);
+
+
+-- =============================================================
+-- 8. HÀM tiện ích: bật/tắt rank + lấy ngưỡng tier
+-- =============================================================
+create or replace function fn_loyalty_set_enabled(p_enabled boolean)
+returns void
+language sql
+as $$
+  update site_settings
+  set value = case when p_enabled then 'true' else 'false' end,
+      updated_at = now()
+  where key = 'loyalty_enabled';
+$$;
+
+create or replace function fn_loyalty_get_enabled()
+returns boolean
+language sql
+stable
+as $$
+  select coalesce(
+    (select value = 'true' from site_settings where key = 'loyalty_enabled'),
+    false
+  );
+$$;
+
+create or replace function fn_loyalty_get_thresholds()
+returns jsonb
+language sql
+stable
+as $$
+  select coalesce(
+    (select value_json from site_settings where key = 'loyalty_tier_thresholds'),
+    '{}'::jsonb
+  );
+$$;
+
+comment on function fn_loyalty_set_enabled    is 'Bật/tắt chương trình khách thân thiết (admin)';
+comment on function fn_loyalty_get_enabled    is 'Check xem rank có đang bật không (frontend)';
+comment on function fn_loyalty_get_thresholds is 'Lấy ngưỡng tier + voucher (frontend)';
+
+
+-- =============================================================
+-- 9. HÀM tiện ích: auto-issue voucher khi KH đạt rank mới
+--    (Có thể gọi sau khi bật loyalty_enabled)
+-- =============================================================
+create or replace function fn_loyalty_issue_voucher(p_customer_id integer)
+returns integer
+language plpgsql
+as $$
+declare
+  v_ltv          numeric(14,2);
+  v_rank         varchar(20);
+  v_tier         jsonb;
+  v_voucher      jsonb;
+  v_code         varchar(50);
+  v_valid_days   integer;
+  v_inserted_id  integer;
+begin
+  -- Check loyalty_enabled
+  if not fn_loyalty_get_enabled() then
+    return 0;
+  end if;
+
+  -- Lấy LTV
+  select coalesce(sum(o.final_price), 0)
+  into v_ltv
+  from orders o
+  where o.customer_id = p_customer_id and o.status = 'done';
+
+  -- Tính rank
+  v_rank := case
+    when v_ltv >= 10000000 then 'platinum'
+    when v_ltv >=  5000000 then 'gold'
+    when v_ltv >=  2000000 then 'silver'
+    else null  -- bronze: chưa đủ điều kiện phát voucher
+  end;
+
+  if v_rank is null then
+    return 0;
+  end if;
+
+  -- Lấy ngưỡng
+  v_tier := fn_loyalty_get_thresholds()->v_rank;
+  v_voucher := v_tier->'voucher';
+  if v_voucher is null then
+    return 0;
+  end if;
+
+  -- Check KH chưa có voucher cùng rank đang active
+  if exists (
+    select 1 from customer_vouchers
+    where customer_id = p_customer_id
+      and rank = v_rank
+      and is_active = true
+      and (expires_at is null or expires_at > now())
+  ) then
+    return 0;
+  end if;
+
+  -- Sinh code
+  v_code := 'TC-' || upper(v_rank) || '-' || p_customer_id || '-' ||
+            to_char(now(), 'YYMMDDHH24MI');
+
+  -- Lấy số ngày hiệu lực
+  v_valid_days := coalesce(
+    (select value::integer from site_settings where key = 'loyalty_voucher_valid_days'),
+    30
+  );
+
+  -- Insert
+  insert into customer_vouchers
+    (customer_id, code, rank, discount_type, discount_value,
+     min_order, max_discount, expires_at)
+  values
+    (p_customer_id, v_code, v_rank,
+     v_voucher->>'type',
+     (v_voucher->>'value')::numeric,
+     coalesce((v_voucher->>'min_order')::numeric, 0),
+     (v_voucher->>'max_discount')::numeric,
+     now() + (v_valid_days || ' days')::interval)
+  returning id into v_inserted_id;
+
+  return v_inserted_id;
+end;
+$$;
+
+comment on function fn_loyalty_issue_voucher is 'Tự động phát voucher cho KH khi đạt rank (gọi từ admin khi bật loyalty_enabled hoặc khi đơn done)';
+
+
+-- =============================================================
+-- 10. Trigger: auto-issue voucher khi đơn done + loyalty bật
+-- =============================================================
+create or replace function fn_orders_done_issue_voucher()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.status = 'done' and old.status is distinct from 'done' and new.customer_id is not null then
+    perform fn_loyalty_issue_voucher(new.customer_id);
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_orders_done_issue_voucher on orders;
+create trigger trg_orders_done_issue_voucher
+  after update of status on orders
+  for each row execute function fn_orders_done_issue_voucher();
+
+
+-- =============================================================
+-- 11. Hàm helper: Lấy danh sách đơn hàng của 1 KH (cho trang cá nhân)
+-- =============================================================
+create or replace function fn_customer_orders(
+  p_customer_id integer,
+  p_limit       integer default 20
+)
+returns table (
+  order_id     integer,
+  order_code   varchar,
+  final_price  numeric,
+  status       varchar,
+  payment_method varchar,
+  created_at   timestamp,
+  item_count   bigint,
+  total_qty    bigint
+)
+language sql
+stable
+as $$
+  select
+    o.id, o.order_code, o.final_price, o.status, o.payment_method, o.created_at,
+    (select count(*) from order_items where order_id = o.id) as item_count,
+    (select coalesce(sum(quantity),0) from order_items where order_id = o.id) as total_qty
+  from orders o
+  where o.customer_id = p_customer_id
+  order by o.created_at desc
+  limit p_limit;
+$$;
+
+
+-- =============================================================
+-- 12. Verify
+-- =============================================================
+-- SELECT * FROM v_customer_loyalty ORDER BY ltv DESC LIMIT 10;
+-- SELECT * FROM v_orders_full WHERE status = 'pending' ORDER BY created_at DESC;
+-- SELECT fn_loyalty_get_enabled();
+-- SELECT fn_loyalty_set_enabled(true);
+-- SELECT fn_loyalty_issue_voucher(<customer_id>);
+
+-- =============================================================
+-- Migration: J&T Express integration
+-- Chạy 1 lần trên Supabase SQL Editor
+-- Thêm cột vận đơn J&T vào orders + cập nhật view v_orders_full
+-- =============================================================
+--
+-- Phụ thuộc:
+--   - bảng orders(id, order_code, status, ...) — đã có
+--   - view v_orders_full — đã có (sẽ CREATE OR REPLACE)
+--
+-- Cột mới:
+--   jt_bill_code      — mã vận đơn J&T trả về (billcode)
+--   jt_txlogisticid   — mã đơn nội bộ Techtra gửi lên J&T (BẮT BUỘC để cancel/update sau này)
+--   jt_tracking_url   — URL tracking công khai
+--   jt_weight_kg      — trọng lượng đã gửi J&T (API J&T nhận đơn vị KG, không phải gram)
+--   jt_shipping_fee   — phí J&T tính được
+--   jt_status         — trạng thái J&T (created/pickup/transit/delivered/cancelled/returned)
+--   jt_last_trace     — lần tra cứu cuối (jsonb)
+--   jt_created_at     — lúc tạo vận đơn
+--   jt_cancel_reason  — lý do huỷ
+--
+-- ĐÃ BỎ so với bản trước: jt_waybill_no (trùng với jt_bill_code trong API thật),
+-- jt_service_code (API J&T VN thật không có khái niệm service code 01/02/03 —
+-- dùng producttype dạng "EZ" khi tính phí, không lưu theo đơn), jt_pickup_id
+-- (chưa có endpoint pickup trong docs J&T VN công khai).
+-- =============================================================
+
+
+-- =============================================================
+-- 1. Thêm cột tracking vận đơn
+-- =============================================================
+alter table orders
+  add column if not exists jt_bill_code      varchar(100),
+  add column if not exists jt_txlogisticid   varchar(100),
+  add column if not exists jt_tracking_url   text,
+  add column if not exists jt_weight_kg      numeric(10,2),
+  add column if not exists jt_shipping_fee   numeric(12,2) default 0,
+  add column if not exists jt_status         varchar(50),
+  add column if not exists jt_last_trace     jsonb,
+  add column if not exists jt_created_at     timestamp,
+  add column if not exists jt_cancel_reason  text;
+
+-- Index để tra cứu nhanh theo billCode / txlogisticid
+create index if not exists idx_orders_jt_bill on orders(jt_bill_code);
+create index if not exists idx_orders_jt_txlogisticid on orders(jt_txlogisticid);
+create index if not exists idx_orders_jt_status on orders(jt_status);
+
+-- Comment giúp admin hiểu cột khi xem schema
+comment on column orders.jt_bill_code     is 'Mã vận đơn J&T trả về (billcode) — dùng để TRA CỨU (jtTraceOrder)';
+comment on column orders.jt_txlogisticid  is 'Mã đơn nội bộ gửi lên J&T lúc tạo — dùng để HUỶ/SỬA (jtCancelOrder/jtUpdateOrder)';
+comment on column orders.jt_status        is 'Trạng thái vận đơn: created / pickup / transit / delivered / cancelled / returned';
+comment on column orders.jt_tracking_url  is 'URL tra cứu công khai từ J&T';
+comment on column orders.jt_weight_kg     is 'Trọng lượng gửi J&T, đơn vị KG (API J&T VN nhận kg, không phải gram)';
+comment on column orders.jt_last_trace    is 'Lần trace cuối (jsonb) — lưu response từ jtTraceOrder';
+
+
+-- =============================================================
+-- 1b. Migrate dữ liệu cũ (nếu bảng đã từng chạy migration cũ với
+--     jt_waybill_no / jt_weight_grams / jt_service_code / jt_pickup_id)
+--     Bỏ qua bước này nếu bạn chạy migration lần đầu.
+-- =============================================================
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_name = 'orders' and column_name = 'jt_weight_grams') then
+    update orders set jt_weight_kg = jt_weight_grams / 1000.0
+      where jt_weight_grams is not null and jt_weight_kg is null;
+  end if;
+
+  if exists (select 1 from information_schema.columns
+             where table_name = 'orders' and column_name = 'jt_waybill_no') then
+    update orders set jt_txlogisticid = jt_waybill_no
+      where jt_waybill_no is not null and jt_txlogisticid is null;
+  end if;
+end $$;
+
+-- Sau khi xác nhận dữ liệu đã migrate đúng, có thể chạy riêng (KHÔNG tự động ở đây):
+-- alter table orders drop column if exists jt_waybill_no;
+-- alter table orders drop column if exists jt_weight_grams;
+-- alter table orders drop column if exists jt_service_code;
+-- alter table orders drop column if exists jt_pickup_id;
+
+
+-- =============================================================
+-- 2. Cập nhật view v_orders_full
+-- =============================================================
+-- Lưu ý: view này được khai báo ở migration_loyalty_and_orders.sql dòng 249.
+-- CREATE OR REPLACE này sẽ overwrite view cũ. Nếu sau này view bị sửa thêm,
+-- cần cập nhật cả 2 chỗ.
+--
+-- Comment out: cột o.payment_code chưa có trong schema orders (chỉ có
+-- payment_method + payment_status). Cột jt_* cũng chưa được ALTER TABLE
+-- trước khi §25 tạo view. Fix: sẽ tạo view v_orders_full đầy đủ ở cuối
+-- file, sau khi TẤT CẢ ALTER TABLE đã chạy.
+-- create or replace view v_orders_full as
+-- select
+--   o.id, o.order_code, o.customer_id, ...;
+-- comment on view v_orders_full is '...';
+
+
+-- =============================================================
+-- 3. RLS: site_settings — GIỚI HẠN ghi cho authenticated, KHÔNG mở anon
+--    (site_settings chứa key bí mật J&T — không nên để anon ghi được)
+-- =============================================================
+drop policy if exists p_anon_write_site_settings on site_settings;
+drop policy if exists p_anon_update_site_settings on site_settings;
+
+create policy p_auth_write_site_settings
+  on site_settings for insert to authenticated with check (true);
+
+create policy p_auth_update_site_settings
+  on site_settings for update to authenticated using (true) with check (true);
+
+-- Nếu bảng jt_config còn cho anon SELECT (theo policy cũ ở migration trước),
+-- cân nhắc thu hẹp SELECT lại vì key J&T sẽ lộ ra frontend anon:
+--   select value_json from site_settings where key = 'jt_config'
+-- Gợi ý: tách riêng key bí mật (data_digest key) ra khỏi payload trả về
+-- cho client, hoặc chuyển việc build data_digest sang backend/Edge Function.
+
+
+-- =============================================================
+-- §END  PATCH: thêm cột orders để khớp FE thanh-toan.js
+-- -------------------------------------------------------------
+-- Lý do: FE (techtra-shop/src/components/thanh-toan/thanh-toan.js) gửi payload
+--   { receiver_name, receiver_phone, receiver_email, receiver_address,
+--     subtotal_price, discount_price, voucher_code, voucher_discount_type,
+--     voucher_discount_value }
+-- vào bảng `orders`, nhưng schema cũ chỉ có
+--   { customer_name, customer_phone, address, total_price, discount_amount }.
+-- Block này CHỈ THÊM cột mới (không rename, không xoá, không đụng view cũ).
+-- Idempotent — chạy nhiều lần không lỗi.
+-- =============================================================
+
+-- Thêm cột mới trên bảng `orders`
+alter table orders
+  add column if not exists receiver_name           varchar(255),
+  add column if not exists receiver_phone          varchar(20),
+  add column if not exists receiver_email          varchar(255),
+  add column if not exists receiver_address        text,
+  add column if not exists subtotal_price          numeric(12,2) default 0,
+  add column if not exists discount_price          numeric(12,2) default 0,
+  add column if not exists voucher_code            varchar(50),
+  add column if not exists voucher_discount_type   varchar(20),
+  add column if not exists voucher_discount_value  numeric(12,2),
+  add column if not exists payment_code           varchar(140),
+  add column if not exists payment_status         varchar(20) default 'pending';
+
+-- Thêm status mới: deleted_before_ship (dùng để "xóa trước khi giao" bằng cách đổi status)
+-- Không cần constraint nếu status đang là varchar; nhưng thêm comment để admin hiểu.
+comment on column orders.status is 'pending/confirmed/shipping/done/cancelled + deleted_before_ship (xóa trước khi giao)';
+
+-- Thêm cột mới trên bảng `order_items` (FE thanh-toan.js gửi `line_total`,
+-- schema cũ chỉ có `subtotal` — thêm cột mới để khớp, không rename để an toàn)
+alter table order_items
+  add column if not exists line_total              numeric(12,2) default 0;
+
+-- Cột `subtotal` hiện NOT NULL nhưng FE không gửi (FE chỉ gửi `line_total`).
+-- Đặt default = 0 để insert không vi phạm NOT NULL.
+-- Cột cũ vẫn an toàn (các order đã có sẵn giữ nguyên giá trị; default chỉ apply cho INSERT mới).
+alter table order_items
+  alter column subtotal set default 0;
+
+-- Đồng thời backfill giá trị subtotal cho các order_items hiện có dựa trên unit_price * quantity
+-- (idempotent: chỉ cập nhật row có subtotal = 0 và đã có unit_price + quantity).
+update order_items
+   set subtotal = unit_price * quantity
+ where coalesce(subtotal, 0) = 0
+   and unit_price is not null
+   and quantity is not null;
+
+-- Normalize status về lowercase (idempotent).
+-- Một số đơn cũ bị insert với status='PENDING' (uppercase) do FE bug → admin filter
+-- "Chờ xác nhận" không match. Hạ về lowercase để khớp default + filter + admin code.
+update orders
+   set status = lower(status)
+ where status <> lower(status);
+
+-- Backfill các cột legacy cho đơn đã có receiver_* nhưng customer_* còn NULL
+-- (admin view `v_orders_full` đọc customer_name → NULL nếu thiếu → hiển thị "(không tên)").
+update orders
+   set customer_name  = coalesce(customer_name, receiver_name),
+       customer_phone = coalesce(customer_phone, receiver_phone),
+       address        = coalesce(address, receiver_address)
+ where (customer_name is null or customer_phone is null or address is null)
+   and (receiver_name is not null or receiver_phone is not null or receiver_address is not null);
+
+
+-- =====================================================================
+-- §END PATCH 2 (2026-07-28): thêm cột admins.admin_priority + is_active
+-- AdminAccounts.jsx select cột admin_priority + is_active → 42703 nếu DB cũ.
+-- Schema đã có 2 cột này từ §7, nhưng DB chạy init-db.sql cũ chưa có → ALTER.
+-- =====================================================================
+alter table admins
+  add column if not exists admin_priority integer default 0,
+  add column if not exists is_active      boolean   default true;
+
+-- Backfill: admin cũ chưa có admin_priority thì mặc định 0, is_active = true.
+update admins
+   set admin_priority = coalesce(admin_priority, 0),
+       is_active      = coalesce(is_active, true);
+
+
+-- =====================================================================
+-- §END PATCH 3 (2026-07-28): site_settings — cho phép anon write
+-- Settings.jsx cần upsert các key: jt_config, bank_*, zalo_*, smtp_*
+-- Để admin cấu hình từ UI. Dev-only: production phải siết policy.
+-- =====================================================================
+drop policy if exists p_anon_write_site_settings on site_settings;
+create policy p_anon_write_site_settings
+  on site_settings for insert to anon, authenticated with check (true);
+
+drop policy if exists p_anon_update_site_settings on site_settings;
+create policy p_anon_update_site_settings
+  on site_settings for update to anon, authenticated using (true) with check (true);
+
+-- Seed các key mặc định (idempotent — không ghi đè nếu đã có)
+insert into site_settings (key, value, value_json, description) values
+  ('zalo_app_id',       '', null, 'Zalo OA — App ID (lưu bởi Settings admin)'),
+  ('zalo_secret_key',   '', null, 'Zalo OA — Secret Key (lưu bởi Settings admin)'),
+  ('zalo_access_token', '', null, 'Zalo OA — Access Token (lưu bởi Settings admin)'),
+  ('smtp_host',         '', null, 'SMTP — host (vd: smtp.gmail.com)'),
+  ('smtp_port',         '587', null, 'SMTP — port (587 cho TLS, 465 cho SSL)'),
+  ('smtp_user',         '', null, 'SMTP — username (thường là email gửi)'),
+  ('smtp_pass',         '', null, 'SMTP — password / app password'),
+  ('smtp_from_email',   '', null, 'SMTP — địa chỉ From hiển thị'),
+  ('smtp_from_name',    'Techtra', null, 'SMTP — tên hiển thị khi gửi mail')
+on conflict (key) do nothing;
+
+
+-- =====================================================================
+-- §END PATCH 4 (2026-07-28): product_reviews — counter denormalized
+-- Bảng product_reviews đã được tạo ở §9.2 (di chuyển từ sau §23 lên
+-- đứng trước §20 RLS để §20 có thể bật policy cho bảng này).
+-- Patch này bổ sung:
+--   1) 3 cột denormalized trên products:
+--        sold_count    — tổng số lượng đã bán (SUM order_items.quantity)
+--        reviews_count — số đánh giá đã duyệt
+--        reviews_sum   — tổng rating để tính trung bình nhanh
+--   2) 2 hàm helper: fn_compute_sold_count, fn_compute_reviews
+--   3) 3 trigger tự đồng bộ khi INSERT/UPDATE/DELETE review / order_items
+--   4) 1 trigger cập nhật khi orders.status đổi (đơn chuyển done/cancelled)
+--   5) Backfill sold_count / reviews_count / reviews_sum cho dữ liệu cũ
+-- Dev-only: anon full access đã mở ở §20 (allow_all_product_reviews).
+-- Production phải siết policy (chỉ user đã mua mới review được).
+-- =====================================================================
+
+-- 2) Thêm cột denormalized trên products (idempotent)
+alter table products
+  add column if not exists sold_count    integer default 0,
+  add column if not exists reviews_count integer default 0,
+  add column if not exists reviews_sum   integer default 0;
+  -- reviews_sum / reviews_count → avg = reviews_sum / reviews_count
+
+update products
+  set sold_count    = coalesce(sold_count, 0),
+      reviews_count = coalesce(reviews_count, 0),
+      reviews_sum   = coalesce(reviews_sum, 0);
+
+-- Index phục vụ truy vấn sold_count
+create index if not exists idx_products_sold_count on products (sold_count desc);
+
+-- 3) Hàm helper: tính sold_count cho 1 product_id
+create or replace function fn_compute_sold_count(p_product_id bigint)
+returns integer
+language sql
+stable
+as $$
+  select coalesce(sum(oi.quantity)::integer, 0)
+  from order_items oi
+  join orders o on o.id = oi.order_id
+  where oi.product_id = p_product_id
+    and o.status not in ('cancelled', 'deleted_before_ship');
+$$;
+
+-- 4) Hàm helper: tính reviews_count + reviews_sum cho 1 product_id
+create or replace function fn_compute_reviews(p_product_id bigint)
+returns table(reviews_count integer, reviews_sum integer)
+language sql
+stable
+as $$
+  select
+    count(*)::integer                 as reviews_count,
+    coalesce(sum(rating), 0)::integer as reviews_sum
+  from product_reviews
+  where product_id = p_product_id
+    and is_approved = true;
+$$;
+
+-- 5) Trigger cập nhật reviews_count + reviews_sum khi INSERT/UPDATE/DELETE review
+create or replace function trg_product_reviews_sync()
+returns trigger as $$
+declare
+  v_pid bigint;
+begin
+  if (tg_op = 'DELETE') then
+    v_pid := old.product_id;
+  else
+    v_pid := new.product_id;
+  end if;
+
+  update products p
+  set reviews_count = coalesce(c.cnt, 0),
+      reviews_sum   = coalesce(c.s,   0)
+  from (
+    select count(*) as cnt, coalesce(sum(rating),0) as s
+    from product_reviews
+    where product_id = v_pid and is_approved = true
+  ) c
+  where p.id = v_pid;
+
+  -- Đồng bộ cả product cũ (khi update đổi product_id)
+  if (tg_op = 'UPDATE' and old.product_id is distinct from new.product_id) then
+    update products p
+    set reviews_count = coalesce(c.cnt, 0),
+        reviews_sum   = coalesce(c.s,   0)
+    from (
+      select count(*) as cnt, coalesce(sum(rating),0) as s
+      from product_reviews
+      where product_id = old.product_id and is_approved = true
+    ) c
+    where p.id = old.product_id;
+  end if;
+
+  return coalesce(new, old);
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_product_reviews_sync_ins on product_reviews;
+create trigger trg_product_reviews_sync_ins
+  after insert on product_reviews
+  for each row execute function trg_product_reviews_sync();
+
+drop trigger if exists trg_product_reviews_sync_upd on product_reviews;
+create trigger trg_product_reviews_sync_upd
+  after update on product_reviews
+  for each row execute function trg_product_reviews_sync();
+
+drop trigger if exists trg_product_reviews_sync_del on product_reviews;
+create trigger trg_product_reviews_sync_del
+  after delete on product_reviews
+  for each row execute function trg_product_reviews_sync();
+
+-- 6) Trigger cập nhật sold_count khi order_items INSERT/UPDATE/DELETE
+create or replace function trg_order_items_sold_count()
+returns trigger as $$
+declare
+  v_pid bigint;
+begin
+  if (tg_op = 'DELETE') then
+    v_pid := old.product_id;
+  elsif (tg_op = 'UPDATE') then
+    v_pid := coalesce(new.product_id, old.product_id);
+  else
+    v_pid := new.product_id;
+  end if;
+
+  if v_pid is not null then
+    update products
+    set sold_count = fn_compute_sold_count(v_pid)
+    where id = v_pid;
+  end if;
+
+  -- Khi UPDATE đổi product_id: cập nhật cả sp cũ
+  if (tg_op = 'UPDATE' and old.product_id is distinct from new.product_id and old.product_id is not null) then
+    update products
+    set sold_count = fn_compute_sold_count(old.product_id)
+    where id = old.product_id;
+  end if;
+
+  return coalesce(new, old);
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_order_items_sold_count_ins on order_items;
+create trigger trg_order_items_sold_count_ins
+  after insert on order_items
+  for each row execute function trg_order_items_sold_count();
+
+drop trigger if exists trg_order_items_sold_count_upd on order_items;
+create trigger trg_order_items_sold_count_upd
+  after update on order_items
+  for each row execute function trg_order_items_sold_count();
+
+drop trigger if exists trg_order_items_sold_count_del on order_items;
+create trigger trg_order_items_sold_count_del
+  after delete on order_items
+  for each row execute function trg_order_items_sold_count();
+
+-- 7) Trigger cập nhật sold_count khi orders.status thay đổi
+-- (vd: đơn vừa chuyển sang done/cancelled → recount sold_count cho từng sp)
+create or replace function trg_orders_status_sold_count()
+returns trigger as $$
+begin
+  if (tg_op = 'UPDATE' and old.status is distinct from new.status) then
+    update products p
+    set sold_count = fn_compute_sold_count(p.id)
+    from order_items oi
+    where oi.order_id = new.id
+      and oi.product_id = p.id;
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_orders_status_sold_count on orders;
+create trigger trg_orders_status_sold_count
+  after update on orders
+  for each row execute function trg_orders_status_sold_count();
+
+-- 8) Backfill sold_count cho các sp đã có đơn
+update products p
+set sold_count = fn_compute_sold_count(p.id);
+
+-- 9) Backfill reviews_count/reviews_sum
+update products p
+set reviews_count = coalesce(c.cnt, 0),
+    reviews_sum   = coalesce(c.s,   0)
+from (
+  select product_id,
+         count(*) as cnt,
+         coalesce(sum(rating),0) as s
+  from product_reviews
+  where is_approved = true
+  group by product_id
+) c
+where c.product_id = p.id;
+
+update products
+set reviews_count = 0,
+    reviews_sum   = 0
+where id not in (select product_id from product_reviews where is_approved = true);
+
+
+-- =============================================================
+-- §END PATCH 5  about_requests
+-- -------------------------------------------------------------
+-- Bảng lưu yêu cầu nội dung (draft) mà khách submit từ frontend
+-- (AboutContentTab). Anon được INSERT, dev-only mở ALL cho admin
+-- (admin đăng nhập qua backend Express, không dùng Supabase Auth).
+-- Production cần siết policy: chỉ service_role hoặc admin qua
+-- Edge Function được SELECT/UPDATE.
+-- =============================================================
+create table if not exists about_requests (
+  id         uuid primary key default gen_random_uuid(),
+  group_id   bigint references product_groups(id) on delete set null,
+  title      text not null,
+  body       text not null,
+  link       text,
+  status     text not null default 'pending'
+             check (status in ('pending', 'reviewed', 'approved', 'rejected')),
+  created_at timestamptz default now()
 );
 
-CREATE TABLE IF NOT EXISTS homepage_articles (
-  id         SERIAL PRIMARY KEY,
-  type       VARCHAR(30) DEFAULT 'link',
-  title      VARCHAR(255) NOT NULL,
-  url        TEXT,
-  file_url   TEXT,
-  file_name  VARCHAR(255),
-  file_size  BIGINT,
-  created_at TIMESTAMP DEFAULT NOW()
-);
+create index if not exists idx_about_requests_status_created
+  on about_requests (status, created_at desc);
+create index if not exists idx_about_requests_group
+  on about_requests (group_id);
 
-CREATE TABLE IF NOT EXISTS homepage_picks (
-  id           SERIAL PRIMARY KEY,
-  kind         VARCHAR(30) NOT NULL
+alter table about_requests enable row level security;
+
+drop policy if exists "Allow anon insert - about_requests" on about_requests;
+create policy "Allow anon insert - about_requests"
+  on about_requests for insert
+  to anon
+  with check (true);
+
+drop policy if exists "Allow all for anon - about_requests" on about_requests;
+create policy "Allow all for anon - about_requests"
+  on about_requests for all
+  to anon
+  using (true)
+  with check (true);
+
+
+
+
+-- =============================================================
+-- EXTRA SEED DATA FOR FULL WEB DEMO
+-- =============================================================
+
+-- Ensure is_sale column exists on product_groups
+alter table product_groups add column if not exists is_sale boolean default false;
+
+-- Ensure product_variants table exists
+CREATE TABLE IF NOT EXISTS product_variants (
+  id          serial primary key,
+  product_id  integer       references products(id) on delete cascade,
+  sku         varchar(100)  unique not null,
+  name        varchar(255)  not null,
+  price       numeric(12,2) not null default 0,
+  stock       integer       default 0,
+  is_active   boolean       default true,
+  created_at  timestamp     default now(),
+  updated_at  timestamp     default now()
+);
+CREATE INDEX IF NOT EXISTS idx_product_variants_product ON product_variants(product_id);
+
+-- Admins + users
+insert into admins (name, email, password, role, admin_priority)
+values ('Super Admin', 'admin@techtra.vn', '$2a$10$placeholder', 'superadmin', 100)
+on conflict (email) do update set name = excluded.name, role = excluded.role, admin_priority = excluded.admin_priority, is_active = excluded.is_active;
+
+insert into users (username, email, password_hash, full_name, phone, role)
+values
+  ('user1', 'a.nguyen@demo.vn', '$2a$10$placeholder', 'Nguyen Van A', '0901000001', 'user'),
+  ('user2', 'b.tran@demo.vn',  '$2a$10$placeholder', 'Tran Thi B',   '0901000002', 'user'),
+  ('user3', 'c.le@demo.vn',    '$2a$10$placeholder', 'Le Van C',     '0901000003', 'user')
+on conflict (email) do update set username = excluded.username, full_name = excluded.full_name, phone = excluded.phone, is_active = excluded.is_active;
+
+-- Customers
+insert into customers (name, email, phone, password, address, province, district, ward, is_active)
+values
+  ('Nguyen Van A', 'a.nguyen@demo.vn', '0901000001', '$2a$10$placeholder', '12 Nguyen Hue', 'TP.HCM', 'Quan 1', 'Ben Nghe', true),
+  ('Tran Thi B',   'b.tran@demo.vn',   '0901000002', '$2a$10$placeholder', '99 Le Loi',     'Ha Noi', 'Ba Dinh', 'Dien Bien', true),
+  ('Le Van C',     'c.le@demo.vn',     '0901000003', '$2a$10$placeholder', '45 Hai Ba Trung', 'Da Nang', 'Hai Chau', 'Thach Thang', true)
+on conflict (email) do update set name = excluded.name, phone = excluded.phone, address = excluded.address, province = excluded.province, district = excluded.district, ward = excluded.ward, is_active = excluded.is_active;
+
+-- Product groups (cha + con)
+insert into product_groups (name, slug, description, image_url, condition_type, is_active, is_sale, is_slider, sort_order, parent_id, slider_text, intro_title, intro_subtitle, intro_image_url)
+values
+  ('Cà phê rang xay', 'ca-phe-rang-xay', 'Nhóm cà phê rang mộc nguyên chất', 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=900&q=60', 'manual', true, false, true, 1, null, 'Khám phá vị cà phê đích thực', 'Cà phê rang xay', 'Hương vị nguyên bản từ vùng đất cao', 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=1200&q=60'),
+  ('Trà thảo mộc', 'tra-thao-moc', 'Nhóm trà chăm sóc sức khỏe', 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=60', 'manual', true, false, true, 2, null, 'Thanh lọc cơ thể mỗi ngày', 'Trà thảo mộc', 'Tinh hoa thiên nhiên trong từng tách trà', 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=60'),
+  ('Combo quà tặng', 'combo-qua-tang', 'Combo làm quà tặng dịp lễ', 'https://images.unsplash.com/photo-1514866747592-c2d279258a9f?auto=format&fit=crop&w=900&q=60', 'manual', true, false, true, 3, null, 'Gửi trao yêu thương', 'Combo quà tặng', 'Set quà tinh tế cho ngườ` + `i thân yêu', 'https://images.unsplash.com/photo-1514866747592-c2d279258a9f?auto=format&fit=crop&w=1200&q=60'),
+  ('Flash Sale', 'flash-sale', 'Sản phẩm đang giảm giá sốc', 'https://images.unsplash.com/photo-1521017432531-f550ce710b93?auto=format&fit=crop&w=900&q=60', 'manual', true, true, false, 4, null, null, null, null, null),
+  ('Best Seller', 'best-seller', 'Các sản phẩm bán chạy nhất', 'https://images.unsplash.com/photo-1498804103079-a6351b050096?auto=format&fit=crop&w=900&q=60', 'manual', true, false, false, 5, null, null, null, null, null)
+on conflict (slug) do update set name = excluded.name, description = excluded.description, image_url = excluded.image_url, is_active = excluded.is_active, is_slider = excluded.is_slider, is_sale = excluded.is_sale, sort_order = excluded.sort_order, parent_id = excluded.parent_id, slider_text = excluded.slider_text, intro_title = excluded.intro_title, intro_subtitle = excluded.intro_subtitle, intro_image_url = excluded.intro_image_url;
+
+-- Child groups
+insert into product_groups (name, slug, description, image_url, condition_type, is_active, is_sale, is_slider, sort_order, parent_id)
+select v.name, v.slug, v.description, v.image_url, 'manual', true, false, false, v.sort_order, p.id
+from (values
+  ('Cà phê Arabica', 'ca-phe-arabica', 'Cà phê Arabica cao cấp', 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=60', 1),
+  ('Cà phê Robusta', 'ca-phe-robusta', 'Cà phê Robusta đậm đà', 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=900&q=60', 2),
+  ('Trà hoa cúc', 'tra-hoa-cuc', 'Trà hoa cúc dịu nhẹ', 'https://images.unsplash.com/photo-1464306076886-da185f6a9d05?auto=format&fit=crop&w=900&q=60', 1),
+  ('Trà gừng sả', 'tra-gung-sa', 'Trà gừng sả giữ ấm', 'https://images.unsplash.com/photo-1515823662972-da6a2e4d3002?auto=format&fit=crop&w=900&q=60', 2),
+  ('Set quà tết', 'set-qua-tet', 'Set quà biếu tết', 'https://images.unsplash.com/photo-1514866747592-c2d279258a9f?auto=format&fit=crop&w=900&q=60', 1)
+) as v(name, slug, description, image_url, sort_order)
+cross join lateral (select id from product_groups where slug = 'ca-phe-rang-xay' and parent_id is null limit 1) p
+where not exists (select 1 from product_groups g where g.slug = v.slug);
+
+-- Products
+insert into products (name, slug, description, group_id, category, price, final_price, discount, old_price, stock, sku, weight, images, image_url, cod_enabled, shipping_type, status, is_active, is_new, rating, reviews, flash_sale_discount, flash_sale_end_at)
+select v.name, v.slug, v.description, g.id, v.category, v.price, v.final_price, v.discount, v.old_price, v.stock, v.sku, v.weight, v.images, v.image_url, true, 'default', 'active', true, v.is_new, v.rating, v.reviews, v.flash_sale_discount, v.flash_sale_end_at
+from (values
+  ('Cà phê Arabica Đà Lạt 500g', 'ca-phe-arabica-da-lat-500g', 'Hạt Arabica chọn lọc từ vùng đất cao Đà Lạt.', 'ca-phe-arabica', 'Cà phê', 185000, 166500, 10, 200000, 120, 'CF-ARA-500', 500, array['https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=60']::text[], 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=60', true, 4.8, 0, 10, now() + interval '7 days'),
+  ('Cà phê Robusta Buôn Ma Thuột 500g', 'ca-phe-robusta-buon-ma-thuot-500g', 'Robusta đậm đà, caffeine cao.', 'ca-phe-robusta', 'Cà phê', 145000, 130500, 10, 160000, 200, 'CF-ROB-500', 500, array['https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=900&q=60']::text[], 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=900&q=60', false, 4.5, 0, 0, null),
+  ('Trà hoa cúc mật ong 250g', 'tra-hoa-cuc-mat-ong-250g', 'Hoa cúc kết hợp mật ong nguyên chất.', 'tra-hoa-cuc', 'Trà', 115000, 103500, 10, 130000, 80, 'TR-HC-250', 250, array['https://images.unsplash.com/photo-1464306076886-da185f6a9d05?auto=format&fit=crop&w=900&q=60']::text[], 'https://images.unsplash.com/photo-1464306076886-da185f6a9d05?auto=format&fit=crop&w=900&q=60', true, 4.9, 0, 15, now() + interval '3 days'),
+  ('Trà gừng sả ấm áp 250g', 'tra-gung-sa-am-ap-250g', 'Gừng tươi và sả thơm, giữ ấm cơ thể.', 'tra-gung-sa', 'Trà', 95000, 85500, 10, 110000, 95, 'TR-GS-250', 250, array['https://images.unsplash.com/photo-1515823662972-da6a2e4d3002?auto=format&fit=crop&w=900&q=60']::text[], 'https://images.unsplash.com/photo-1515823662972-da6a2e4d3002?auto=format&fit=crop&w=900&q=60', true, 4.6, 0, 0, null),
+  ('Set quà tết Cà phê + Trà cao cấp', 'set-qua-tet-ca-phe-tra', 'Bộ quà tết gồm cà phê Arabica, trà hoa cúc, hộp thiếc sang trọng.', 'set-qua-tet', 'Combo', 450000, 382500, 15, 520000, 40, 'SET-TET-01', 1200, array['https://images.unsplash.com/photo-1514866747592-c2d279258a9f?auto=format&fit=crop&w=900&q=60']::text[], 'https://images.unsplash.com/photo-1514866747592-c2d279258a9f?auto=format&fit=crop&w=900&q=60', false, 4.7, 0, 20, now() + interval '5 days')
+) as v(name, slug, description, group_slug, category, price, final_price, discount, old_price, stock, sku, weight, images, image_url, is_new, rating, reviews, flash_sale_discount, flash_sale_end_at)
+join product_groups g on g.slug = v.group_slug
+on conflict (slug) do update set name = excluded.name, description = excluded.description, group_id = excluded.group_id, category = excluded.category, price = excluded.price, final_price = excluded.final_price, discount = excluded.discount, old_price = excluded.old_price, stock = excluded.stock, sku = excluded.sku, weight = excluded.weight, images = excluded.images, image_url = excluded.image_url, is_active = excluded.is_active, is_new = excluded.is_new, rating = excluded.rating, reviews = excluded.reviews, flash_sale_discount = excluded.flash_sale_discount, flash_sale_end_at = excluded.flash_sale_end_at;
+
+-- Shipping services
+insert into product_shipping_services (product_id, service_code, service_name, is_active)
+select id, 'EZ', 'J&T Express EZ', true from products
+on conflict do nothing;
+
+-- Product variants
+insert into product_variants (product_id, sku, name, price, stock, is_active)
+select p.id, 'CF-ARA-500-GOI', 'Gói 500g', 166500, 120, true from products p where p.slug = 'ca-phe-arabica-da-lat-500g'
+union all
+select p.id, 'CF-ARA-1KG', 'Gói 1kg', 315000, 60, true from products p where p.slug = 'ca-phe-arabica-da-lat-500g'
+union all
+select p.id, 'CF-ROB-500-GOI', 'Gói 500g', 130500, 200, true from products p where p.slug = 'ca-phe-robusta-buon-ma-thuot-500g'
+union all
+select p.id, 'TR-HC-250-GOI', 'Gói 250g', 103500, 80, true from products p where p.slug = 'tra-hoa-cuc-mat-ong-250g'
+on conflict do nothing;
+
+-- Price list
+insert into price_list (sku, product_id, name, group_id, price, discount, final_price, stock, unit, is_active)
+select p.sku, p.id, p.name, p.group_id, p.price, p.discount, p.final_price, p.stock, 'gói', true from products p
+on conflict (sku) do update set product_id = excluded.product_id, name = excluded.name, group_id = excluded.group_id, price = excluded.price, discount = excluded.discount, final_price = excluded.final_price, stock = excluded.stock, is_active = excluded.is_active;
+
+-- Orders
+insert into orders (customer_id, customer_name, customer_phone, address, province, district, ward, total_price, shipping_fee, discount_amount, final_price, payment_method, payment_status, status, note)
+select c.id, c.name, c.phone, c.address, c.province, c.district, c.ward, 334000, 14000, 0, 348000, 'cod', 'pending', 'done', 'Giao giờ hành chính' from customers c where c.email = 'a.nguyen@demo.vn'
+union all
+select c.id, c.name, c.phone, c.address, c.province, c.district, c.ward, 205000, 10000, 0, 215000, 'cod', 'pending', 'done', 'Gọi trước khi giao' from customers c where c.email = 'b.tran@demo.vn'
+on conflict do nothing;
+
+-- Order items
+insert into order_items (order_id, product_id, product_name, product_sku, image_url, quantity, unit_price, discount, subtotal)
+select o.id, p.id, p.name, p.sku, p.image_url, 1, p.price, p.discount, p.final_price
+from orders o join customers c on c.id = o.customer_id join products p on p.slug = 'ca-phe-arabica-da-lat-500g'
+where c.email = 'a.nguyen@demo.vn'
+union all
+select o.id, p.id, p.name, p.sku, p.image_url, 1, p.price, p.discount, p.final_price
+from orders o join customers c on c.id = o.customer_id join products p on p.slug = 'tra-gung-sa-am-ap-250g'
+where c.email = 'a.nguyen@demo.vn'
+union all
+select o.id, p.id, p.name, p.sku, p.image_url, 1, p.price, p.discount, p.final_price
+from orders o join customers c on c.id = o.customer_id join products p on p.slug = 'tra-hoa-cuc-mat-ong-250g'
+where c.email = 'b.tran@demo.vn'
+union all
+select o.id, p.id, p.name, p.sku, p.image_url, 1, p.price, p.discount, p.final_price
+from orders o join customers c on c.id = o.customer_id join products p on p.slug = 'ca-phe-robusta-buon-ma-thuot-500g'
+where c.email = 'b.tran@demo.vn'
+on conflict do nothing;
+
+-- Transactions
+insert into transactions (order_id, type, amount, description)
+select id, 'income', final_price, 'Thanh toán COD đơn ' || order_code from orders
+on conflict do nothing;
+
+-- Product reviews
+insert into product_reviews (product_id, rating, comment, reviewer_name, is_approved)
+select p.id, 5, 'Cà phê thơm ngon, đóng gói đẹp!', 'Nguyen Van A', true from products p where p.slug = 'ca-phe-arabica-da-lat-500g'
+union all
+select p.id, 4, 'Hương vị ổn, sẽ ủng hộ tiếp.', 'Tran Thi B', true from products p where p.slug = 'ca-phe-arabica-da-lat-500g'
+union all
+select p.id, 5, 'Trà hoa cúc rất thơm, uống buổi tối rất thư giãn.', 'Le Van C', true from products p where p.slug = 'tra-hoa-cuc-mat-ong-250g'
+union all
+select p.id, 4, 'Robusta đậm đà, pha phin rất hợp.', 'Pham Van D', true from products p where p.slug = 'ca-phe-robusta-buon-ma-thuot-500g'
+on conflict do nothing;
+
+-- Vouchers
+insert into customer_vouchers (customer_id, code, rank, discount_type, discount_value, min_order, max_discount, expires_at, is_public, is_active, note)
+values
+  (null, 'WELCOME10', 'bronze', 'percent', 10, 200000, 50000, now() + interval '30 days', true, true, 'Voucher chào mừng'),
+  (null, 'FLASH20', 'bronze', 'percent', 20, 500000, 100000, now() + interval '7 days', true, true, 'Voucher flash sale')
+on conflict do nothing;
+
+-- Upload groups
+CREATE UNIQUE INDEX IF NOT EXISTS upload_groups_slug_full_uidx ON upload_groups (slug);
+
+insert into upload_groups (id, name, slug, description, icon, sort_order, is_active, display_locations)
+values
+  ('a1b2c3d4-e5f6-7890-abcd-ef1234567890'::uuid, 'Về Techtra', 've-techtra', 'Giới thiệu về Techtra', 'fas fa-info-circle', 1, true, array['about']::text[]),
+  ('b2c3d4e5-f6a7-8901-bcde-f12345678901'::uuid, 'Giải trí', 'giai-tri', 'Video giải trí', 'fas fa-video', 2, true, array['video']::text[]),
+  ('c3d4e5f6-a7b8-9012-cdef-123456789012'::uuid, 'Hướng dẫn sử dụng', 'huong-dan-su-dung', 'Video hướng dẫn sản phẩm', 'fas fa-graduation-cap', 3, true, array['video']::text[])
+on conflict (slug) do update set name = excluded.name, description = excluded.description, icon = excluded.icon, sort_order = excluded.sort_order, is_active = excluded.is_active, display_locations = excluded.display_locations;
+
+-- About content
+insert into about_content (group_id, content, updated_at)
+select g.id, '<h1>Giới thiệu Techtra</h1><p>Techtra là thương hiệu cà phê và trà thảo mộc chất lượng cao, cam kết 100% nguyên liệu thiên nhiên.</p>', now()
+from upload_groups g where g.slug = 've-techtra'
+on conflict (group_id) do update set content = excluded.content, updated_at = excluded.updated_at;
+
+-- Videos
+insert into videos (group_id, title, url, file_name, file_size, created_at)
+select g.id, 'Video giải trí Techtra #1', 'https://www.youtube.com/embed/dQw4w9WgXcQ', 'video1.mp4', 10240000, now() from upload_groups g where g.slug = 'giai-tri'
+union all
+select g.id, 'Hướng dẫn pha cà phê Arabica', 'https://www.youtube.com/embed/abc123', 'huong-dan-pha-ca-phe.mp4', 20480000, now() from upload_groups g where g.slug = 'huong-dan-su-dung'
+on conflict do nothing;
+
+-- About requests
+insert into about_requests (group_id, title, body, link, status)
+select g.id, 'Yêu cầu cập nhật giới thiệu', 'Nội dung đề xuất cập nhật trang Về Techtra.', null, 'pending'
+from product_groups g where g.slug = 'ca-phe-rang-xay'
+on conflict do nothing;
+
+-- Backfill counters
+update products set
+  reviews = coalesce((select count(*) from product_reviews where product_id = products.id and is_approved = true), 0),
+  sold_count = coalesce((select sum(oi.quantity) from order_items oi join orders o on o.id = oi.order_id where oi.product_id = products.id and o.status not in ('cancelled','deleted_before_ship')), 0);
+
+update product_groups set product_count = coalesce((select count(*) from products where group_id = product_groups.id and is_active = true and status = 'active'), 0);
+
+DO $$
+DECLARE rec RECORD;
+BEGIN
+  FOR rec IN SELECT id FROM customers LOOP
+    PERFORM fn_refresh_customer_stats(rec.id);
+  END LOOP;
+END $$;
+
+COMMIT;
+
+-- =============================================================
+-- END OF TECHTRA FULL DATA FOR WEB
+-- =============================================================

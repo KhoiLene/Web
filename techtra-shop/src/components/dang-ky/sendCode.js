@@ -1,84 +1,87 @@
-// sendCode.js
+// sendCode.js — Frontend wrapper cho hệ thống OTP (Techtra).
 // ─────────────────────────────────────────────────────────────────────────────
-// Gọi backend Techtra (Express ở D:/Web/backend) để gửi mã xác nhận qua
-// email (services/email.js) hoặc Zalo (services/zalo.js).
+// Gọi backend Express (D:/Web1/backend) để gửi / xác thực mã OTP.
+// Dùng 2 endpoint thống nhất:
+//   POST /api/otp/send    { identifier, channel, purpose } → { success, expiresAt }
+//   POST /api/otp/verify  { identifier, channel, purpose, code } → { success }
 //
-// Hai endpoint tương ứng trong backend/server.js:
-//   POST /api/auth/send-verification        (email – dùng services/email.js)
-//   POST /api/auth/send-zalo-verification   (zalo  – dùng services/zalo.js)
+// Channel: 'email' | 'zalo'
+// Purpose: 'register' | 'review' | 'reset_password'
 //
-// Cấu hình đường dẫn gốc của backend qua window.__TECHTRA_API_BASE__
-// (mặc định: http://localhost:5000 khi dev, hoặc cùng origin khi reverse-proxy).
+// KHÔNG hiển thị mã OTP ra UI. Nếu gửi thất bại sẽ throw với message từ backend.
+// Cấu hình đường dẫn gốc qua window.__TECHTRA_API_BASE__ (mặc định '/api').
 // ─────────────────────────────────────────────────────────────────────────────
 
 (function () {
     'use strict';
 
-    // Cho phép trang chủ override base URL khi cần (vd: khi deploy sau nginx proxy)
     const API_BASE =
         (typeof window !== 'undefined' && window.__TECHTRA_API_BASE__) ||
-        // Nếu chạy sau reverse-proxy /api/ thì dùng relative, ngược lại dùng localhost:5000
         (location.protocol === 'http:' || location.protocol === 'https:'
-            ? '/api'  // Use relative path when behind nginx proxy
+            ? '/api'
             : 'http://localhost:5000');
 
-    /**
-     * Gửi mã xác nhận qua email hoặc Zalo.
-     * @param {string} identifier - email (khi method = 'email') hoặc số điện thoại (khi method = 'zalo')
-     * @param {'email'|'zalo'} method
-     * @returns {Promise<Object>} JSON response từ backend
-     */
-    function sendVerificationCode(identifier, method) {
-        let url = '';
-        let payload = {};
-
-        if (method === 'email') {
-            url = `${API_BASE}/api/auth/send-verification`;
-            payload = { email: identifier };
-        } else if (method === 'zalo') {
-            url = `${API_BASE}/api/auth/send-zalo-verification`;
-            payload = { phoneNumber: identifier };
-        } else {
-            return Promise.reject(new Error('Phương thức xác nhận không hợp lệ'));
+    async function handleResp(response) {
+        let data = null;
+        try { data = await response.json(); } catch (_) {}
+        if (!response.ok || (data && data.success === false)) {
+            const err = new Error((data && data.error) || `Lỗi máy chủ (HTTP ${response.status})`);
+            err.status = response.status;
+            throw err;
         }
-
-        return fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        }).then((response) => {
-            return response.json().then((data) => {
-                if (!response.ok) {
-                    throw new Error(data.error || 'Gửi mã xác nhận thất bại');
-                }
-                return data;
-            });
-        });
+        return data || { success: true };
     }
 
     /**
-     * Xác nhận mã 6 số vừa gửi.
-     * @param {string} identifier
-     * @param {string} code
-     * @param {'email'|'zalo'} method
+     * Gửi mã OTP qua email hoặc Zalo.
+     * @param {string} identifier    email (channel='email') hoặc SĐT (channel='zalo')
+     * @param {'email'|'zalo'} channel
+     * @param {'register'|'review'|'reset_password'} purpose
+     * @returns {Promise<{success: true, message: string, expiresAt: string}>}
      */
-    function verifyCode(identifier, code, method) {
-        return fetch(`${API_BASE}/api/auth/verify-code`, {
+    async function sendOtp(identifier, channel, purpose) {
+        if (!identifier || !channel || !purpose) {
+            throw new Error('Thiếu identifier / channel / purpose');
+        }
+        const resp = await fetch(`${API_BASE}/otp/send`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ identifier, code, type: method })
-        }).then((response) => {
-            return response.json().then((data) => {
-                if (!response.ok) {
-                    throw new Error(data.error || 'Mã xác nhận không đúng hoặc đã hết hạn');
-                }
-                return data;
-            });
+            body: JSON.stringify({ identifier, channel, purpose }),
         });
+        return handleResp(resp);
     }
 
-    // Expose ra window để dangky.js dùng
-    window.sendVerificationCode = sendVerificationCode;
-    window.verifyCode = verifyCode;
+    /**
+     * Xác thực mã OTP vừa gửi.
+     * @param {string} identifier
+     * @param {'email'|'zalo'} channel
+     * @param {'register'|'review'|'reset_password'} purpose
+     * @param {string} code  Mã 6 số
+     */
+    async function verifyOtp(identifier, channel, purpose, code) {
+        if (!identifier || !channel || !purpose || !code) {
+            throw new Error('Thiếu identifier / channel / purpose / code');
+        }
+        const resp = await fetch(`${API_BASE}/otp/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identifier, channel, purpose, code }),
+        });
+        return handleResp(resp);
+    }
+
+    // Expose ra window — đổi tên từ sendVerificationCode/verifyCode cũ sang
+    // namespace TechnoraOtp cho rõ ràng, đồng thời giữ alias cũ để code cũ
+    // (san-pham.js chưa refactor) không vỡ ngay.
+    window.TechnoraOtp = { send: sendOtp, verify: verifyOtp };
     window.__TECHTRA_API_BASE__ = API_BASE;
+
+    // Backward-compat alias (deprecated, sẽ xoá sau khi FE refactor xong)
+    window.sendVerificationCode = function (identifier, method) {
+        // method 'email'|'zalo' → channel tương ứng, purpose mặc định 'register'
+        return sendOtp(identifier, method, 'register');
+    };
+    window.verifyCode = function (identifier, code, method) {
+        return verifyOtp(identifier, method, 'register', code);
+    };
 })();

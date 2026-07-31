@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Techtra</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for fallback icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Main Style Sheet -->
+    <link rel="stylesheet" href="../../components/header/header.css">
+</head>
+<body>
+
+    <!-- SITE HEADER -->
+    <header class="site-header">
+        <div class="bg-header">
+            <!-- DESKTOP HEADER (Visible on screens > 992px) -->
+            <div class="site-header__top disable-max-992">
+                <div class="container">
+                    <div class="site-header__inner">
+
+                        <!-- Header Left: Logo and Nav Menu -->
+                        <div class="header-left">
+                            <div class="header-logo">
+                                <a href="../../components/trang-chu/" title="Techtra">
+                                    <img src="../../components/header/techtra-logo.png" alt="Techtra Logo">
+                                </a>
+                            </div>
+
+                            <nav class="v2-header-menu-top">
+                                <ul>
+                                    <!-- SALE ITEM -->
+                                    <li class="menu-parent type-1" data-parent-id="sale" data-has-mega="true">
+                                        <a href="#" data-parent-id="sale">SALE</a>
+
+                                        <!-- Megamenu Type 1 (Combo & Sale) -->
+                                        <div class="menu-type-1 site-header__main menu-type-new">
+                                            <div class="container menu-type-1__container menu-type-new__container">
+                                                <a href="/components/san-pham/san-pham.html?sale=1" class="menu-type-new__title">
+                                                    <span>Xem tất cả</span>
+                                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                        <path fill-rule="evenodd" clip-rule="evenodd" d="M7.99922 1.19922C4.24962 1.19922 1.19922 4.24962 1.19922 7.99922C1.19922 11.7488 4.24962 14.7992 7.99922 14.7992C11.7488 14.7992 14.7992 11.7488 14.7992 7.99922C14.7992 4.24962 11.7488 1.19922 7.99922 1.19922ZM8 16C3.5888 16 0 12.4112 0 8C0 3.5888 3.5888 0 8 0C12.4112 0 16 3.5888 16 8C16 12.4112 12.4112 16 8 16Z" fill="#2563eb" />
+                                                        <path fill-rule="evenodd" clip-rule="evenodd" d="M6.84559 11.3745C6.69199 11.3745 6.53759 11.3161 6.42079 11.1977C6.18719 10.9625 6.18799 10.5833 6.42239 10.3497L8.78399 7.99769L6.42239 5.64649C6.18799 5.41289 6.18719 5.03289 6.42079 4.79769C6.65439 4.56169 7.03359 4.56329 7.26879 4.79609L10.0576 7.57289C10.1704 7.68569 10.2336 7.83849 10.2336 7.99769C10.2336 8.15769 10.1704 8.31049 10.0576 8.42329L7.26879 11.1993C7.15199 11.3161 6.99839 11.3745 6.84559 11.3745Z" fill="#2563eb" />
+                                                    </svg>
+                                                </a>
+                                                <!-- Render động từ API: product_groups có is_sale = true (ảnh trên, chữ dưới) -->
+                                                <div class="menu-type-1__content" id="saleMenuMount"></div>
+                                            </div>
+                                        </div>
+                                    </li>
+
+                                    <!-- SẢN PHẨM ITEM -->
+                                    <li class="menu-parent type-2" data-parent-id="san_pham" data-has-mega="true">
+                                        <a href="#" data-parent-id="san_pham">SẢN PHẨM</a>
+
+                                        <!-- Megamenu Type 2 (Sản phẩm Grid + Banners) -->
+                                        <div class="menu-type-2 site-header__main menu-type-new">
+                                            <div class="container menu-type-2__container menu-type-new__container">
+                                                <div class="menu-type-2__content">
+                                                    <div class="menu-type-2__left">
+                                                        <!-- Render động từ API: product_groups có is_sale != true (nhóm cha to đen + sản phẩm con bên dưới) -->
+                                                        <div class="menu-type-2__list-menu" id="productMenuMount"></div>
+                                                    </div>
+
+                                                    <!-- Promo banners in megamenu -->
+                                                    <div class="menu-type-2__right" data-banner-container>
+                                                        <div class="menu-type-2__right--item" data-banner-item>
+                                                            <a href="#">
+                                                                <img src="techtra-logo.png" alt="Menu Banner 1">
+                                                            </a>
+                                                        </div>
+                                                        <div class="menu-type-2__right--item" data-banner-item>
+                                                            <a href="#">
+                                                                <img src="techtra-logo.png" alt="Menu Banner 2">
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <a href="/components/tat-ca-san-pham/tat-ca-san-pham.html" class="menu-type-2__more">Tất cả sản phẩm</a>
+                                            </div>
+                                        </div>
+                                    </li>
+
+                                    <!-- VỀ Techtra ITEM -->
+                                    <li class="menu-parent type-3" data-parent-id="ve_techtra" data-has-mega="true">
+                                        <a href="/components/ve-techtra-moi/ve-techtra-moi.html" data-parent-id="ve_techtra">VỀ TECHTRA</a>
+
+                                        <!-- Megamenu Type 3 (Giới thiệu grid + Cover) -->
+                                        <div class="menu-type-3 site-header__main menu-type-new">
+                                            <div class="container menu-type-3__container menu-type-new__container">
+                                                <div class="menu-type-3__left" id="aboutMenuMount">
+                                                    <!-- Render động từ API: about_content (icon + tên) -->
+                                                </div>
+                                                <div class="menu-type-3__right">
+                                                    <img src="techtra-logo.png" alt="Về Techtra Banner">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </li>
+
+                                    <!-- BÀI VIẾT ITEM — render động giống SẢN PHẨM (nhóm cha to đen + bài viết con bên dưới) -->
+                                    <li class="menu-parent type-2" data-parent-id="bai_viet" data-has-mega="true">
+                                        <a href="../../components/tin-tuc/tin-tuc.html" data-parent-id="bai_viet">BÀI VIẾT</a>
+
+                                        <!-- Megamenu kiểu SẢN PHẨM, style dùng lại menu-type-2 -->
+                                        <div class="menu-type-2 menu-type-news site-header__main menu-type-new">
+                                            <div class="container menu-type-2__container menu-type-new__container">
+                                                <div class="menu-type-2__content">
+
+                                                    <div class="menu-type-2__left">
+                                                        <!-- Render động từ API: news_categories (cha + con) — giống SẢN PHẨM -->
+                                                        <div class="menu-type-2__list-menu" id="newsMenuMount"></div>
+                                                    </div>
+
+                                                    <!-- Banner bên phải, đồng bộ với SẢN PHẨM -->
+                                                    <div class="menu-type-2__right" data-banner-container>
+                                                        <div class="menu-type-2__right--item" data-banner-item>
+                                                            <a href="../../components/tin-tuc/tin-tuc.html">
+                                                                <img src="techtra-logo.png" alt="Bài viết Techtra">
+                                                            </a>
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+
+                                                <a href="../../components/tin-tuc/tin-tuc.html" class="menu-type-2__more">Tất cả bài viết</a>
+                                            </div>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+
+                        <!-- Header Right: Search and Actions -->
+                        <div class="header-right">
+                            <div class="header-search">
+                                <div class="header-search__form">
+                                    <form action="#" method="GET" onsubmit="return false;">
+                                        <div class="header-search__field">
+                                            <input type="text" id="spotlight-search" name="keyword" placeholder="Tìm sản phẩm, danh mục mong muốn ..." autocomplete="off">
+                                            <button class="header-search__button" aria-label="Tìm kiếm">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 511.999 511.999" style="width: 15px;">
+                                                    <path d="M225.773.616C101.283.616 0 101.622 0 225.773S101.284 450.93 225.773 450.93s225.774-101.006 225.774-225.157S350.263.616 225.773.616zm0 413.301c-104.084 0-188.761-84.406-188.761-188.145 0-103.745 84.677-188.145 188.761-188.145s188.761 84.4 188.761 188.145c.001 103.739-84.676 188.145-188.761 188.145z" fill="#2563eb" />
+                                                    <path d="M506.547 479.756L385.024 358.85c-7.248-7.205-18.963-7.174-26.174.068-7.205 7.248-7.174 18.962.068 26.174l121.523 120.906a18.457 18.457 0 0013.053 5.385 18.45 18.45 0 0013.121-5.453c7.205-7.249 7.174-18.963-.068-26.174z" fill="#2563eb" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+
+                                <!-- Search Suggestions Spotlight -->
+                                <div id="header-spotlight-search" class="header-search__spotlight">
+                                    <div class="spotlight-search">
+                                        <div class="spotlight__section">
+                                            <h4 class="spotlight__title"><i class="fa-solid fa-fire"></i> Tìm kiếm phổ biến</h4>
+                                            <div class="spotlight__tags">
+                                                <a href="#" class="spotlight__tag">Son dưỡng tơ tằm</a>
+                                                <a href="#" class="spotlight__tag">Kem chống nắng sâm 1700</a>
+                                                <a href="#" class="spotlight__tag">Dầu gội thảo dược</a>
+                                                <a href="#" class="spotlight__tag">Sữa rửa mặt trà xanh</a>
+                                                <a href="#" class="spotlight__tag">Nước hoa khô</a>
+                                            </div>
+                                        </div>
+                                        <div class="spotlight__section">
+                                            <h4 class="spotlight__title"><i class="fa-solid fa-clock-rotate-left"></i> Lịch sử tìm kiếm</h4>
+                                            <div class="spotlight__history-list" id="spotLightSearchHistory">
+                                                <div class="spotlight__history-item">
+                                                    <span>Son dưỡng môi</span>
+                                                    <button class="spotlight__history-delete"><i class="fa-solid fa-xmark"></i></button>
+                                                </div>
+                                                <div class="spotlight__history-item">
+                                                    <span>Kem dưỡng da rau má</span>
+                                                    <button class="spotlight__history-delete"><i class="fa-solid fa-xmark"></i></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action links -->
+                            <div class="header-actions mobile--hidden header-custom">
+                                <!-- Store Locator -->
+                                <a href="#" class="text--primary header-actions__login header-custom_item">
+                                    <img src="techtra-logo.png" alt="Store Locator Icon">
+                                    <div class="header-custom_item__text">
+                                        HỆ THỐNG<br>CỬA HÀNG
+                                    </div>
+                                </a>
+
+                                <!-- Account Action -->
+                                <div class="text--primary header-actions__login header-custom_item" id="account-action">
+                                    <a href="#" class="" aria-label="Tài khoản" data-account-link>
+                                        <svg width="28" height="32" viewBox="0 0 28 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M13.9715 31.9998C9.75871 31.9998 5.54593 31.9998 1.33314 31.9998C0.245489 31.9998 -0.0417845 31.7015 0.00471053 30.6231C0.252131 24.7781 4.27562 19.9315 10.0327 18.9865C13.1927 18.4681 16.454 18.3548 19.5891 19.3598C24.5242 20.9415 27.9134 25.6081 27.9997 30.8048C28.0147 31.6698 27.6892 31.9998 26.7958 31.9998C22.5216 32.0015 18.2457 31.9998 13.9715 31.9998ZM14.0114 30.1198C17.8472 30.1198 21.683 30.1198 25.5189 30.1198C25.8294 30.1198 26.1233 30.1981 26.0635 29.6648C25.5969 25.5181 22.236 21.7831 18.1345 20.8765C16.2464 20.4598 14.3335 20.6381 12.4322 20.6315C7.0537 20.6115 2.86748 24.1881 1.96415 29.5048C1.87946 30.0031 1.99736 30.1315 2.50548 30.1298C6.34133 30.1098 10.1772 30.1181 14.013 30.1181L14.0114 30.1198Z" fill="#2563eb" />
+                                            <path d="M22.404 8.42667C22.4123 13.0683 18.6479 16.8667 14.0266 16.875C9.37213 16.885 5.57946 13.08 5.59772 8.41667C5.61433 3.765 9.37711 -0.00166611 14.005 5.52884e-07C18.633 0.00166722 22.3957 3.77667 22.404 8.42667ZM7.47247 8.46167C7.49074 12.085 10.4183 15.0067 14.025 14.9967C17.6233 14.9867 20.5442 12.03 20.5276 8.41333C20.511 4.79 17.5852 1.87 13.9751 1.87833C10.3768 1.88667 7.4542 4.84667 7.47081 8.46167H7.47247Z" fill="#2563eb" />
+                                        </svg>
+                                    </a>
+                                </div>
+
+                                <!-- Cart Action -->
+                                <div class="header-cart header-custom_item" id="headerMiniCart">
+                                    <a href="/components/gio-hang/gio-hang.html" class="" aria-label="Giỏ hàng">
+                                        <svg width="36" height="31" viewBox="0 0 36 31" fill="none" style="width: 36px" xmlns="http://www.w3.org/2000/svg">
+                                            <g clip-path="url(#clip0_3169_1961)">
+                                                <path d="M27.6827 24.8548H14.7778C15.5226 25.2848 16.1679 25.7828 16.5469 26.5473C16.9333 27.3283 16.9858 28.1332 16.6894 28.9547C16.2392 30.1988 15.0067 31.0276 13.6541 30.9982C12.2284 30.9669 11.0465 30.0591 10.6713 28.7066C10.253 27.2052 10.8514 26.0603 12.7349 24.8603C12.2077 24.8291 11.75 24.8162 11.296 24.7721C9.92653 24.6379 8.90037 23.7706 8.55144 22.4695C8.21752 21.2272 8.6715 19.9279 9.78583 19.2094C10.2454 18.9135 10.3017 18.6397 10.1873 18.1491C9.01856 13.0715 7.86671 7.99031 6.743 2.90174C6.60605 2.2806 6.39407 2.03068 5.69995 2.06008C4.24982 2.12072 2.79407 2.08581 1.34018 2.07478C0.473482 2.06927 -0.0217761 1.6613 0.000735588 1.00708C0.0232473 0.378593 0.495994 0.011055 1.34018 0.00737962C3.23867 -0.00180883 5.13716 -0.00180883 7.03753 0.00737962C8.00178 0.0128927 8.26254 0.226065 8.48766 1.15777C8.66587 1.89469 8.88349 2.62609 8.98291 3.37403C9.06921 4.02641 9.37499 4.15505 9.99782 4.15321C18.0383 4.13299 26.0806 4.14035 34.121 4.14035C34.378 4.14035 34.6369 4.12932 34.8939 4.1477C35.7475 4.21018 36.1715 4.75781 35.9388 5.56088C34.5656 10.3021 33.1774 15.0397 31.7985 19.7809C31.6072 20.4407 31.1513 20.6887 30.4872 20.6851C29.221 20.6796 27.9547 20.6851 26.6903 20.6851C21.884 20.6851 17.0778 20.6851 12.2734 20.6851C12.0389 20.6851 11.8025 20.6777 11.5718 20.7016C10.9471 20.7659 10.5512 21.1776 10.5606 21.7307C10.57 22.2765 10.9771 22.6753 11.6037 22.7304C11.8588 22.7525 12.1195 22.7433 12.3766 22.7433C18.3084 22.7433 24.2384 22.7433 30.1702 22.7433C31.2676 22.7433 31.7648 23.0539 31.791 23.7467C31.8173 24.4597 31.3033 24.7978 30.1702 24.8199C30.0089 24.8236 29.8494 24.8401 29.6543 24.9044C30.4497 25.294 31.1101 25.8049 31.4853 26.5969C31.8586 27.3853 31.8961 28.1902 31.5847 29.0061C31.1007 30.2741 29.8344 31.0717 28.4443 30.9908C27.0392 30.9081 25.9267 30.0058 25.5722 28.6588C25.1801 27.174 25.8123 25.9905 27.6864 24.8566L27.6827 24.8548ZM21.5745 6.21326C17.8263 6.21326 14.0799 6.21694 10.3317 6.20959C9.90214 6.20959 9.62075 6.20591 9.75957 6.79765C10.6319 10.5263 11.478 14.2623 12.3053 18.002C12.4103 18.4798 12.6036 18.6195 13.0932 18.6195C18.5035 18.603 23.9138 18.6048 29.326 18.6158C29.7612 18.6158 29.9845 18.5148 30.1139 18.0609C31.1757 14.3322 32.2563 10.609 33.3669 6.89321C33.547 6.29228 33.3781 6.20407 32.8191 6.20591C29.0709 6.22245 25.3246 6.2151 21.5763 6.2151L21.5745 6.21326ZM13.731 28.9271C14.2938 28.9198 14.7497 28.4787 14.7609 27.9329C14.7722 27.3614 14.2901 26.8946 13.6991 26.902C13.1382 26.9093 12.6786 27.3522 12.6692 27.8962C12.658 28.4677 13.1401 28.9345 13.731 28.9271ZM29.6731 27.8907C29.6581 27.3173 29.1628 26.8744 28.5681 26.9057C28.0053 26.9351 27.5682 27.3926 27.5814 27.9384C27.5964 28.51 28.0935 28.9547 28.6863 28.9234C29.2491 28.894 29.6881 28.4346 29.6731 27.8907Z" fill="#2563eb" />
+                                            </g>
+                                            <defs>
+                                                <clipPath id="clip0_3169_1961">
+                                                    <rect width="36" height="31" fill="white" />
+                                                </clipPath>
+                                            </defs>
+                                        </svg>
+                                        <span class="header-cart__count" id="cart-badge-count">0</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- MOBILE HEADER (Visible on screens <= 992px) -->
+            <div class="wrapper-header-mobile-top">
+                <div class="header-mobile-top">
+                    <!-- Hamburger / Close menu toggle -->
+                    <div class="header-mobile-top_left">
+                        <div class="icon-hambuger-mb" id="mobileMenuOpenBtn">
+                            <svg width="22" height="19" viewBox="0 0 22 19" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <line x1="1" y1="1" x2="21" y2="1" stroke="#2563eb" stroke-width="2" stroke-linecap="round" />
+                                <line x1="1" y1="10" x2="21" y2="10" stroke="#2563eb" stroke-width="2" stroke-linecap="round" />
+                                <line x1="1" y1="18" x2="21" y2="18" stroke="#2563eb" stroke-width="2" stroke-linecap="round" />
+                            </svg>
+                        </div>
+                        <div class="icon-close-mb d-none" id="mobileMenuCloseBtn">
+                            <svg width="22" height="19" viewBox="0 0 22 19" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M2.2 2.2L19.8 17.8" stroke="#2563eb" stroke-width="2" stroke-linecap="round" />
+                                <path d="M19.8 2.2L2.2 17.8" stroke="#2563eb" stroke-width="2" stroke-linecap="round" />
+                            </svg>
+                        </div>
+                        <!-- Search Icon Mobile -->
+                        <div class="icon-search-mb" id="mobileSearchBtn">
+                            <svg width="20" height="22" viewBox="0 0 20 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <g clip-path="url(#clip0_6768_3781)">
+                                    <path d="M0 9.03537C0.04158 4.58474 3.36687 1.0119 7.75107 0.645231C11.9961 0.290225 15.9002 3.34416 16.611 7.62423C17.0068 10.0059 16.4485 12.1826 14.986 14.1077C14.8064 14.3443 14.818 14.4582 15.0165 14.6627C16.5572 16.251 18.0868 17.8505 19.6164 19.45C20.1225 19.9794 20.1259 20.6561 19.6385 21.0995C19.1878 21.5095 18.5469 21.48 18.0829 21.0022C17.0772 19.9661 16.0826 18.92 15.0825 17.8783C14.522 17.2944 13.952 16.7188 13.4043 16.1227C13.2263 15.9288 13.1071 15.9033 12.8743 16.051C7.90021 19.2005 1.45364 16.4983 0.186833 10.7415C0.0582121 10.1576 0.0216216 9.56649 0 9.03481L0 9.03537ZM14.5386 8.98981C14.5331 5.57809 11.7683 2.81582 8.35925 2.81749C4.96244 2.81916 2.18378 5.60253 2.18434 9.00426C2.18434 12.406 4.96299 15.1977 8.35371 15.2044C11.7677 15.2105 14.5441 12.4215 14.5386 8.98981Z" fill="#2563eb" />
+                                </g>
+                                <defs>
+                                    <clipPath id="clip0_6768_3781">
+                                        <rect width="20" height="20.7692" fill="white" transform="translate(0 0.617188)" />
+                                    </clipPath>
+                                </defs>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Logo Mobile -->
+                    <a href="../../components/" class="header-mobile-top_logo-custom" title="Techtra">
+                        <img src="../../components/header/techtra-logo.png" alt="Techtra logo mobile" width="80px">
+                    </a>
+
+                    <!-- Cart and Account Mobile -->
+                    <div class="header-mobile-top_right">
+                        <a href="#" class="header-mobile-top_right__item icon-account-mb" aria-label="Tài khoản" id="account-action-mobile" data-account-link>
+                            <svg width="22" height="24" viewBox="0 0 28 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M13.9715 31.9998C9.75871 31.9998 5.54593 31.9998 1.33314 31.9998C0.245489 31.9998 -0.0417845 31.7015 0.00471053 30.6231C0.252131 24.7781 4.27562 19.9315 10.0327 18.9865C13.1927 18.4681 16.454 18.3548 19.5891 19.3598C24.5242 20.9415 27.9134 25.6081 27.9997 30.8048C28.0147 31.6698 27.6892 31.9998 26.7958 31.9998C22.5216 32.0015 18.2457 31.9998 13.9715 31.9998ZM14.0114 30.1198C17.8472 30.1198 21.683 30.1198 25.5189 30.1198C25.8294 30.1198 26.1233 30.1981 26.0635 29.6648C25.5969 25.5181 22.236 21.7831 18.1345 20.8765C16.2464 20.4598 14.3335 20.6381 12.4322 20.6315C7.0537 20.6115 2.86748 24.1881 1.96415 29.5048C1.87946 30.0031 1.99736 30.1315 2.50548 30.1298C6.34133 30.1098 10.1772 30.1181 14.013 30.1181L14.0114 30.1198Z" fill="#2563eb" />
+                                <path d="M22.404 8.42667C22.4123 13.0683 18.6479 16.8667 14.0266 16.875C9.37213 16.885 5.57946 13.08 5.59772 8.41667C5.61433 3.765 9.37711 -0.00166611 14.005 5.52884e-07C18.633 0.00166722 22.3957 3.77667 22.404 8.42667ZM7.47247 8.46167C7.49074 12.085 10.4183 15.0067 14.025 14.9967C17.6233 14.9867 20.5442 12.03 20.5276 8.41333C20.511 4.79 17.5852 1.87 13.9751 1.87833C10.3768 1.88667 7.4542 4.84667 7.47081 8.46167H7.47247Z" fill="#2563eb" />
+                            </svg>
+                        </a>
+
+                        <div class="header-cart header-mobile-top_right__item" id="mobileMiniCart">
+                            <a href="/components/gio-hang/gio-hang.html" class="icon-cart" aria-label="Giỏ hàng">
+                                <svg width="24" height="22" viewBox="0 0 26 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M19.9919 19.243H10.6723C11.2101 19.5759 11.6762 19.9615 11.9499 20.5534C12.2289 21.1581 12.2669 21.7813 12.0528 22.4173C11.7277 23.3805 10.8376 24.0222 9.86075 23.9994C8.83111 23.9752 7.97759 23.2724 7.70663 22.2252C7.40451 21.0628 7.83669 20.1764 9.1969 19.2473C8.81621 19.2231 8.48563 19.2131 8.15777 19.179C7.16877 19.0751 6.4277 18.4035 6.1757 17.3962C5.93455 16.4344 6.26241 15.4285 7.06716 14.8722C7.39909 14.6431 7.43973 14.4311 7.35709 14.0512C6.51305 10.12 5.6812 6.18597 4.86968 2.24624C4.77078 1.76534 4.61768 1.57184 4.11641 1.5946C3.06915 1.64155 2.01783 1.61452 0.967857 1.60598C0.34194 1.60172 -0.0157264 1.28585 0.000531229 0.779338C0.0167888 0.292741 0.358198 0.00818109 0.967857 0.0053355C2.33891 -0.0017785 3.70997 -0.0017785 5.08238 0.0053355C5.77875 0.00960389 5.96706 0.174649 6.12964 0.896008C6.25835 1.46655 6.4155 2.03282 6.48731 2.6119C6.54963 3.117 6.77046 3.21659 7.22025 3.21517C13.0269 3.19952 18.8349 3.20521 24.6416 3.20521C24.8272 3.20521 25.0142 3.19667 25.1998 3.2109C25.8162 3.25928 26.1224 3.68327 25.9544 4.30503C24.9627 7.97585 23.9601 11.6438 22.9644 15.3146C22.8262 15.8254 22.497 16.0175 22.0174 16.0147C21.1029 16.0104 20.1884 16.0147 19.2753 16.0147C15.8043 16.0147 12.3333 16.0147 8.86362 16.0147C8.69427 16.0147 8.52357 16.009 8.35693 16.0275C7.90578 16.0773 7.61992 16.396 7.62669 16.8242C7.63347 17.2468 7.92746 17.5556 8.37996 17.5982C8.56421 17.6153 8.75253 17.6082 8.93814 17.6082C13.222 17.6082 17.5045 17.6082 21.7884 17.6082C22.581 17.6082 22.94 17.8487 22.9589 18.385C22.9779 18.9371 22.6067 19.1989 21.7884 19.216C21.6719 19.2188 21.5567 19.2316 21.4158 19.2814C21.9903 19.583 22.4672 19.9786 22.7381 20.5918C23.0077 21.2022 23.0348 21.8254 22.8099 22.4571C22.4604 23.4388 21.5459 24.0563 20.542 23.9937C19.5272 23.9297 18.7238 23.2311 18.4678 22.1882C18.1846 21.0386 18.6412 20.1223 19.9946 19.2444L19.9919 19.243ZM15.5807 4.81013C12.8738 4.81013 10.1683 4.81297 7.46141 4.80728C7.15116 4.80728 6.94794 4.80444 7.04819 5.26258C7.67817 8.14944 8.28919 11.042 8.88665 13.9374C8.96252 14.3073 9.10207 14.4154 9.45567 14.4154C13.3629 14.4026 17.2701 14.4041 21.1787 14.4126C21.4931 14.4126 21.6543 14.3343 21.7478 13.9829C22.5146 11.0961 23.2949 8.21346 24.097 5.33656C24.227 4.87131 24.1051 4.80301 23.7014 4.80444C20.9945 4.81724 18.289 4.81155 15.5821 4.81155L15.5807 4.81013ZM9.9163 22.3959C10.3227 22.3902 10.652 22.0488 10.6601 21.6262C10.6682 21.1837 10.32 20.8223 9.89327 20.828C9.48818 20.8337 9.15626 21.1766 9.14949 21.5977C9.14136 22.0402 9.48954 22.4016 9.9163 22.3959ZM21.4294 21.5935C21.4185 21.1495 21.0609 20.8067 20.6314 20.8308C20.225 20.8536 19.9093 21.2079 19.9188 21.6305C19.9296 22.0729 20.2886 22.4173 20.7168 22.3931C21.1232 22.3703 21.4402 22.0146 21.4294 21.5935Z" fill="#2563eb" />
+                                </svg>
+                                <span class="header-cart__count" id="cart-badge-count">0</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MOBILE SEARCH DRAWER (Hidden by default) -->
+                <div class="search-box-mobile d-none" id="mobileSearchDrawer">
+                    <div class="search-result-mb">
+                        <div class="search-result-mb__form">
+                            <input class="search-result-mb__input" type="text" placeholder="Tìm kiếm sản phẩm ...">
+                            <button class="search-result-mb__button" aria-label="Tìm kiếm"><i class="fa-solid fa-magnifying-glass"></i></button>
+                        </div>
+                        <div class="search-result-mb__suggestions">
+                            <div class="mobile-search-tag">Sâm 1700</div>
+                            <div class="mobile-search-tag">Trà xanh</div>
+                            <div class="mobile-search-tag">Son dưỡng</div>
+                            <div class="mobile-search-tag">Kem chống nắng</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MOBILE MENU SIDEBAR DRAWER (Hidden by default) -->
+            <div class="nav-mobile-overlay" id="mobileMenuOverlay"></div>
+            <div class="nav-mobile" id="mobileMenuDrawer">
+                <div class="nav-mobile__content">
+                    <ul class="nav-mobile__list" id="mobileNavList">
+                        <!-- Render động từ API: SALE, SẢN PHẨM, VỀ TECHTRA, BÀI VIẾT (mobile) -->
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+    </header>
+    <!-- Main JavaScript Sheet -->
+    <script src="../../components/header/app.js"></script>
+    <script src="../../components/header/app-news-menu.js"></script>
+    <script src="../../components/dang-ky/sendCode.js"></script>
+</body>
+</html>

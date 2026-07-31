@@ -7,9 +7,13 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import "./AllCustomers.css";
-import { supabase } from "../../api";
+import { customersApi, dashboardApi, siteSettingsApi, request } from "../../api";
 
 const fmtVND = (n) => Number(n || 0).toLocaleString("vi-VN") + "đ";
+const fmtDateVN = (iso) => {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
+};
 
 const RANK_META = {
   bronze:   { label: "Đồng",     color: "#a16207", bg: "#fef3c7" },
@@ -44,12 +48,15 @@ export default function AllCustomers() {
     setError("");
     try {
       const [custRes, setRes] = await Promise.all([
-        supabase.from("v_customer_loyalty").select("*").order("ltv", { ascending: false }),
-        supabase.from("site_settings").select("key,value,value_json").in("key", ["loyalty_enabled", "loyalty_tier_thresholds"]),
+        customersApi.getAll(),
+        request(
+          "GET",
+          "/db/site_settings?select=key,value,value_json&key=in.(loyalty_enabled,loyalty_tier_thresholds)"
+        ),
       ]);
 
-      if (custRes.error) throw new Error(custRes.error.message);
-      setCustomers(custRes.data || []);
+      const customersList = Array.isArray(custRes) ? custRes : (custRes.data || []);
+      setCustomers(customersList);
 
       const map = {};
       (setRes.data || []).forEach((r) => { map[r.key] = r; });
@@ -76,11 +83,10 @@ export default function AllCustomers() {
     )) return;
     setTogglingRank(true);
     try {
-      const { error: e1 } = await supabase
-        .from("site_settings")
-        .update({ value: newVal ? "true" : "false", updated_at: new Date().toISOString() })
-        .eq("key", "loyalty_enabled");
-      if (e1) throw new Error(e1.message);
+      await request("PATCH", "/db/site_settings", {
+        set: { value: newVal ? "true" : "false", updated_at: new Date().toISOString() },
+        where: { key: "loyalty_enabled" },
+      });
       setLoyalty((p) => ({ ...p, enabled: newVal }));
     } catch (err) {
       alert("Lỗi: " + err.message);
@@ -93,12 +99,10 @@ export default function AllCustomers() {
   const handleIssueVoucher = async (customerId) => {
     setIssuingVoucher(customerId);
     try {
-      const { data, error: e2 } = await supabase.rpc("fn_loyalty_issue_voucher", {
-        p_customer_id: customerId,
-      });
-      if (e2) throw new Error(e2.message);
-      if (data > 0) {
-        alert(`Đã phát voucher #${data} cho KH #${customerId}`);
+      const r = await customersApi.issueLoyaltyVoucher(customerId);
+      const voucherId = r?.voucher_id ?? 0;
+      if (voucherId > 0) {
+        alert(`Đã phát voucher #${voucherId} cho KH #${customerId}`);
       } else {
         alert("KH chưa đủ điều kiện (LTV < ngưỡng Silver) hoặc đã có voucher active.");
       }
@@ -157,8 +161,10 @@ export default function AllCustomers() {
     if (!window.confirm(`Phát voucher cho ${selected.length} khách đã chọn?`)) return;
     let ok = 0;
     for (const id of selected) {
-      const { data } = await supabase.rpc("fn_loyalty_issue_voucher", { p_customer_id: id });
-      if (data > 0) ok++;
+      try {
+        const r = await customersApi.issueLoyaltyVoucher(id);
+        if ((r?.voucher_id ?? 0) > 0) ok++;
+      } catch { /* skip */ }
     }
     alert(`Đã phát ${ok}/${selected.length} voucher (còn lại chưa đủ ngưỡng hoặc đã có voucher active).`);
     setSelected([]);
@@ -365,7 +371,7 @@ export default function AllCustomers() {
                   )}
                   <td style={{ fontSize: 12, color: "#6b7280" }}>
                     {c.last_purchase_at
-                      ? new Date(c.last_purchase_at).toLocaleDateString("vi-VN")
+                      ? fmtDateVN(c.last_purchase_at)
                       : <em>Chưa mua</em>}
                   </td>
                   <td>
@@ -444,23 +450,18 @@ function CustomerDetailModal({ customer, loyaltyEnabled, onClose }) {
         if (!cancelled) setProducts(productsFromView);
 
         // Lấy danh sách đơn done
-        const { data: orderList } = await supabase
-          .from("v_orders_full")
-          .select("id, order_code, final_price, status, payment_method, created_at, item_count, total_qty")
-          .eq("customer_id", customer.customer_id)
-          .eq("status", "done")
-          .order("created_at", { ascending: false })
-          .limit(50);
-        if (!cancelled) setOrders(orderList || []);
+        const orderR = await request(
+          "GET",
+          `/db/orders?select=id,order_code,final_price,status,payment_method,created_at&customer_id=eq.${customer.customer_id}&status=eq.done&order=created_at.desc&limit=50`
+        );
+        if (!cancelled) setOrders(orderR.data || []);
 
         // Lấy voucher của KH (cá nhân) từ v_active_vouchers
-        const { data: vchList } = await supabase
-          .from("v_active_vouchers")
-          .select("id, code, discount_type, discount_value, min_order, max_discount, expires_at, status, rank, note, is_public")
-          .eq("customer_id", customer.customer_id)
-          .order("issued_at", { ascending: false })
-          .limit(50);
-        if (!cancelled) setVouchers(vchList || []);
+        const vchR = await request(
+          "GET",
+          `/db/v_active_vouchers?select=id,code,discount_type,discount_value,min_order,max_discount,expires_at,status,rank,note,is_public&customer_id=eq.${customer.customer_id}&order=issued_at.desc&limit=50`
+        );
+        if (!cancelled) setVouchers(vchR.data || []);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -494,7 +495,7 @@ function CustomerDetailModal({ customer, loyaltyEnabled, onClose }) {
             <div>
               <h2>{customer.customer_name || "(Chưa có tên)"}</h2>
               <p>
-                ID: #{customer.customer_id} · KH từ {new Date(customer.customer_since).toLocaleDateString("vi-VN")}
+                ID: #{customer.customer_id} · KH từ {fmtDateVN(customer.customer_since)}
               </p>
             </div>
           </div>
@@ -546,7 +547,7 @@ function CustomerDetailModal({ customer, loyaltyEnabled, onClose }) {
               <div className="ac-info-label">Mua gần nhất</div>
               <div className="ac-info-value">
                 {customer.last_purchase_at
-                  ? new Date(customer.last_purchase_at).toLocaleString("vi-VN")
+                  ? fmtDateVN(customer.last_purchase_at)
                   : <em className="ac-empty">Chưa mua</em>}
               </div>
             </div>
@@ -590,7 +591,7 @@ function CustomerDetailModal({ customer, loyaltyEnabled, onClose }) {
                     <td style={{ textAlign: "right", fontWeight: 700 }}>{p.qty || 0}</td>
                     <td style={{ fontSize: 12, color: "#6b7280" }}>
                       {p.last_buy_at
-                        ? new Date(p.last_buy_at).toLocaleDateString("vi-VN")
+                        ? fmtDateVN(p.last_buy_at)
                         : "—"}
                     </td>
                   </tr>
@@ -622,7 +623,7 @@ function CustomerDetailModal({ customer, loyaltyEnabled, onClose }) {
                     <td style={{ textAlign: "right" }}>{o.item_count} ({o.total_qty} sp)</td>
                     <td style={{ textAlign: "right", fontWeight: 700, color: "#d70018" }}>{fmtVND(o.final_price)}</td>
                     <td style={{ fontSize: 12, color: "#6b7280" }}>
-                      {new Date(o.created_at).toLocaleString("vi-VN")}
+                      {fmtDateVN(o.created_at)}
                     </td>
                   </tr>
                 ))}
@@ -688,7 +689,7 @@ function CustomerDetailModal({ customer, loyaltyEnabled, onClose }) {
                       </td>
                       <td style={{ fontSize: 12, color: "#6b7280" }}>
                         {v.expires_at
-                          ? new Date(v.expires_at).toLocaleDateString("vi-VN")
+                          ? fmtDateVN(v.expires_at)
                           : <em>Không giới hạn</em>}
                       </td>
                       <td>
@@ -776,19 +777,16 @@ function IssueVoucherByRankModal({ customers, onClose }) {
         note:           note || null,
       }));
 
-      // Insert theo batch 100 để tránh quá tải
+      // Insert từng row (backend generic POST /api/db/* chỉ hỗ trợ 1 row)
       let inserted = 0;
       let failed   = 0;
-      for (let i = 0; i < rows.length; i += 100) {
-        const batch = rows.slice(i, i + 100);
-        const { error } = await supabase
-          .from("customer_vouchers")
-          .insert(batch);
-        if (error) {
-          console.error("Batch error:", error);
-          failed += batch.length;
-        } else {
-          inserted += batch.length;
+      for (const row of rows) {
+        try {
+          await request("POST", "/db/customer_vouchers", row);
+          inserted += 1;
+        } catch (err) {
+          console.error("Insert voucher error:", err);
+          failed += 1;
         }
       }
 
@@ -1245,14 +1243,18 @@ function IssuePublicVoucherModal({ onClose }) {
         note:           note || null,
       }));
 
-      const { data, error } = await supabase
-        .from("customer_vouchers")
-        .insert(rows)
-        .select("id, code, expires_at, discount_type, discount_value");
+      // Insert từng row (backend generic POST /api/db/* chỉ hỗ trợ 1 row)
+      const inserted = [];
+      for (const row of rows) {
+        try {
+          const r = await request("POST", "/db/customer_vouchers", row);
+          if (r.data) inserted.push(r.data);
+        } catch (err) {
+          console.error("Insert voucher error:", err);
+        }
+      }
 
-      if (error) throw error;
-
-      setResult(data || []);
+      setResult(inserted);
     } catch (err) {
       alert("Lỗi: " + err.message);
     } finally {

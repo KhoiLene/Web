@@ -44,6 +44,12 @@ const NAV_ITEMS = [
       { label: "Tất cả khách hàng", pageId: "all-customers" },
     ],
   },
+  {
+    id: "danhgia",
+    label: "Đánh giá",
+    icon: "fas fa-star",
+    pageId: "reviews",
+  },
 ];
 
 const CONTENT_ITEMS = [
@@ -198,6 +204,18 @@ export default function Sidebar({ currentActivePage, onPageChange }) {
         ))}
 
         <li><hr className="divider" /></li>
+        <li>
+          <div
+            onClick={(e) => {
+              e.preventDefault();
+              onPageChange("admin-accounts");
+            }}
+            className={`nav-top-link${currentActivePage === "admin-accounts" ? " active" : ""}`}
+          >
+            <Icon name="fas fa-user-shield" className="nav-icon" />
+            <span className="nav-label">Quản lý admin</span>
+          </div>
+        </li>
         <NavItem
           item={{ id: "cauhinh", label: "Cấu hình", icon: "fas fa-cog", pageId: "settings" }}
           {...sharedProps}

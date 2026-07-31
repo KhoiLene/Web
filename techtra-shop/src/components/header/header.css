@@ -10,12 +10,23 @@
 }
 
 :root {
-    --primary-green: #3E6807;
-    --dark-green: #363C05;
-    --light-green: #456820;
-    --mid-green: #4a7a08;
-    --pale-green: #e8f0d8;
-    --search-bg: #eaf0df;
+    /* Màu chủ đạo: XANH DƯƠNG (blue) */
+    --primary-blue: #2563eb;
+    --primary-blue-dark: #1d4ed8;
+    --primary-blue-darker: #1e3a8a;
+    --primary-blue-light: #3b82f6;
+    --dark-blue: #0f172a;
+    --mid-blue: #1e40af;
+    --pale-blue: #dbeafe;
+    --sky-blue: #e0f2fe;
+
+    /* Giữ alias màu cũ cho backward-compat */
+    --primary-green: var(--primary-blue);
+    --dark-green: var(--dark-blue);
+    --light-green: var(--primary-blue-light);
+    --mid-green: var(--mid-blue);
+    --pale-green: var(--pale-blue);
+    --search-bg: var(--sky-blue);
     --orange-badge: #e05b1d;
     --text-dark: #2d2d2d;
     --text-mid: #555555;
@@ -57,7 +68,7 @@ img { max-width: 100%; display: block; }
     position: -webkit-sticky;
     position: sticky;
     top: 0;
-    z-index: 1000;
+    z-index: 1300;  /* cao hơn nav-mobile (1250) + nav-mobile-overlay (1150) */
     background: #fff;
     border-bottom: 1px solid var(--border-light);
     transition: box-shadow var(--transition);
@@ -224,6 +235,10 @@ body {
     width: 140px;
     text-align: center;
 }
+.menu-type-1__content--item > .menu-child-slider {
+    width: 100%;
+    align-self: stretch;
+}
 
 .menu-type-1__content--item__img img {
     width: 140px;
@@ -282,14 +297,18 @@ body {
 .menu-type-2__list-menu--item {
     min-width: 0;
 }
+.menu-type-2__list-menu--item > .menu-child-slider {
+    width: 100%;
+    margin-top: 14px;
+}
 
 .menu-type-2__list-menu--item__title {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 12.5px;
-    font-weight: 700;
-    color: var(--dark-green);
+    font-size: 14px;
+    font-weight: 800;
+    color: #1a1a1a;
     margin-bottom: 10px;
     padding-bottom: 8px;
     border-bottom: 1px solid var(--border-light);
@@ -386,6 +405,25 @@ body {
     width: 44px;
     height: 44px;
     object-fit: contain;
+}
+
+/* FontAwesome icon fallback cho VỀ TECHTRA (upload_groups.icon) */
+.menu-type-3__left--icon {
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-green);
+    font-size: 28px;
+    background: var(--pale-green, #f0f7eb);
+    border-radius: 10px;
+    transition: transform var(--transition, 0.2s), background var(--transition, 0.2s);
+}
+.menu-type-3__left--icon i { line-height: 1; }
+.menu-type-3__left--item a:hover .menu-type-3__left--icon {
+    transform: scale(1.05);
+    background: #e3f1d6;
 }
 
 .menu-type-3__left--item span {
@@ -691,7 +729,7 @@ body {
     height: 60px;
     background: #fff;
     position: relative;
-    z-index: 1200;  /* cao hơn .nav-mobile (1100) — giữ header luôn trên menu */
+    z-index: 1300;  /* cao hơn nav-mobile (1250) + overlay (1150) — header luôn sáng và click được */
 }
 
 .header-mobile-top_left {
@@ -710,6 +748,8 @@ body {
     padding: 6px;
     border-radius: 6px;
     transition: background var(--transition);
+    position: relative;     /* tạo stacking context riêng */
+    z-index: 2;            /* > overlay để chắc chắn click được khi menu mở */
 }
 .icon-hambuger-mb:hover,
 .icon-close-mb:hover,
@@ -801,12 +841,16 @@ body {
 /* ============================================
    MOBILE DRAWER SIDEBAR
    ============================================ */
+
+/* ---- FIX: overlay phải THẤP hơn drawer, không thì overlay che mất
+   drawer và chặn hết mọi click bên trong menu (đây là nguyên nhân
+   khiến menu mobile bị mờ xám và không bấm được). ---- */
 .nav-mobile-overlay {
     display: none;
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.45);
-    z-index: 1200;
+    z-index: 1150;   /* thấp hơn .nav-mobile (1250), cao hơn nội dung trang */
     backdrop-filter: blur(2px);
     animation: fadeInOverlay 0.25s ease;
 }
@@ -825,7 +869,8 @@ body {
     width: 300px;
     max-width: 80vw;
     background: #fff;
-    z-index: 1100;    /* thấp hơn header (1200) để header luôn che menu */
+    z-index: 1250;    /* cao hơn overlay (1150) để menu sáng rõ và bấm được,
+                         thấp hơn header (1300) để header luôn che menu */
     transform: translateX(-100%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     overflow-y: auto;
@@ -1286,4 +1331,158 @@ body {
 .menu-type-news .menu-type-2__right--item img {
     height: 100%;
     object-fit: cover;
+}
+
+/* ===========================================================
+   SLIDER NHÓM CON (is_slider = true)
+   - Hiển thị dưới nhóm cha trong menu SALE / SẢN PHẨM / BÀI VIẾT
+   - Ảnh tròn + tên nhóm con — cuộn ngang, có nút prev/next
+   =========================================================== */
+.menu-child-slider {
+    position: relative;
+    margin-top: 12px;
+    width: 100%;
+}
+.menu-child-slider__track {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    padding: 4px 2px;
+}
+.menu-child-slider__track::-webkit-scrollbar { display: none; }
+.menu-child-slider__item {
+    flex: 0 0 78px;
+    width: 78px;
+    text-align: center;
+    text-decoration: none;
+    color: #1a1a1a;
+    transition: transform var(--transition);
+}
+.menu-child-slider__item:hover {
+    transform: translateY(-2px);
+}
+.menu-child-slider__img {
+    display: block;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 6px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+}
+.menu-child-slider__img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.menu-child-slider__name {
+    display: block;
+    font-size: 11px;
+    line-height: 1.3;
+    color: #374151;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    min-height: 28px;
+}
+.menu-child-slider__item:hover .menu-child-slider__name {
+    color: var(--primary-green);
+}
+
+.menu-child-slider__nav {
+    position: absolute;
+    top: 32px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    color: #1a1a1a;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    z-index: 2;
+    transition: all var(--transition);
+}
+.menu-child-slider__nav:hover {
+    background: var(--primary-green);
+    color: #fff;
+    border-color: var(--primary-green);
+}
+.menu-child-slider__nav--prev { left: -8px; }
+.menu-child-slider__nav--next { right: -8px; }
+.menu-child-slider:hover .menu-child-slider__nav {
+    display: flex;
+}
+
+/* Slider nằm trong item của menu-type-1 (SALE) — ảnh to hơn vì card SALE rộng */
+.menu-type-1__content--item .menu-child-slider {
+    margin-top: 14px;
+}
+.menu-type-1__content--item .menu-child-slider__item {
+    flex: 0 0 96px;
+    width: 96px;
+}
+.menu-type-1__content--item .menu-child-slider__img {
+    width: 80px;
+    height: 80px;
+}
+
+/* ============================================================
+   GLOBAL MOBILE HELPERS — auto-applied to every page
+   Chuẩn hóa breakpoint: 1024 (tablet) / 768 (mobile) / 480 (xs)
+   File header.css được load ở MỌI trang qua partials.js,
+   nên nhúng 1 lần ở đây = mọi trang hưởng lợi.
+   ============================================================ */
+
+/* --- Tablet --- */
+@media (max-width: 1024px) {
+  iframe { max-width: 100% !important; }
+  img { max-width: 100% !important; height: auto; }
+}
+
+/* --- Mobile (768) --- */
+@media (max-width: 768px) {
+  /* iOS KHÔNG zoom khi input font >= 16px */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+  /* Touch target >= 44px (Apple HIG / Material Design) */
+  button.btn, .btn, a.btn, input[type="submit"], input[type="button"] {
+    min-height: 44px;
+  }
+  /* Modal full-screen drawer (auth, search, v.v.) */
+  .modal-overlay { padding: 0 !important; align-items: stretch !important; }
+  .modal-overlay .modal-container,
+  .modal-overlay .modal-content,
+  .modal-overlay .auth-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+  /* Iframe responsive (YouTube/Vimeo) — khớp shop ve-techtra-moi */
+  iframe {
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 16 / 9;
+  }
+}
+
+/* --- XS (480) --- */
+@media (max-width: 480px) {
+  html { font-size: 14px; }
+  body { -webkit-text-size-adjust: 100%; }
 }

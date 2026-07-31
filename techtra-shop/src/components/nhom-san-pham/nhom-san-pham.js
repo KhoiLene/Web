@@ -1,5 +1,7 @@
 // nhom-san-pham.js — Trang danh sách sản phẩm theo nhóm.
 // File nằm trong /components/nhom-san-pham/ nên import path là ../api-service/api.js.
+// Bảng `product_groups` (cha-con) trong Supabase:
+//   id, name, slug, image_url, parent_id, is_active, is_sale, sort_order
 import { productsApi, productGroupsApi } from "../api-service/api.js";
 
 // URL trang chi tiết SP (dùng chung với phần product detail ở /san-pham/)
@@ -12,7 +14,7 @@ function getGroupSlugFromUrl() {
   if (match) return decodeURIComponent(match[1]);
   return "";
 }
-
+  
 function formatVND(n) { return Number(n || 0).toLocaleString("vi-VN") + "đ"; }
 
 function normalizeProductImages(product) {
@@ -124,9 +126,10 @@ async function loadGroup() {
     return;
   }
   try {
-    const groupRes = await productGroupsApi.getAll();
-    const groups = groupRes.data || [];
-    group = groups.find((g) => g.slug === slug || String(g.id) === slug) || null;
+    // Tìm nhóm theo slug trên product_groups (cha + con)
+    const treeRes = await productGroupsApi.getAll();
+    const allGroups = treeRes.data || [];
+    group = allGroups.find((g) => g.slug === slug || String(g.id) === slug) || null;
     if (!group) {
       try {
         const one = await productGroupsApi.getOne(slug);
@@ -136,7 +139,7 @@ async function loadGroup() {
       }
     }
     const productsRes = await productsApi.getAll({ group_id: group.id, limit: 100 });
-    allProducts = (productsRes.data || []).filter((p) => p.is_active !== false);
+    allProducts = (productsRes.data || []).filter((p) => p.is_active !== false && p.status !== "deleted");
 
     $loading.style.display = "none";
     $wrapper.style.display = "block";
@@ -149,7 +152,7 @@ async function loadGroup() {
     $groupName.textContent = group.name;
     $groupDesc.textContent = group.description || "";
     if (group.image_url) {
-      $groupImg.innerHTML = `<img src="${group.image_url}" alt="${group.name}">`;
+      $groupImg.innerHTML = `<img src="${group.image_url}" alt="${group.name}" onerror="this.outerHTML='<i class=\\'fas fa-folder\\' style=\\'font-size:96px;color:#2563eb\\' aria-hidden=\\'true\\'></i>'">`;
     } else {
       $groupImg.innerHTML = "";
     }

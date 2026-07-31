@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Thanh toán - Techtra</title>
+    <link rel="stylesheet" href="../../components/thanh-toan/thanh-toan.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="header-placeholder"></div>
+
+    <main class="checkout container">
+      <div class="checkout-head">
+        <h1>Thanh toán</h1>
+        <p class="checkout-sub">Hoàn tất đặt hàng theo 3 bước.</p>
+      </div>
+
+      <section class="stepper" aria-label="Các bước thanh toán">
+        <div class="step" data-step="1">
+          <div class="step-dot">1</div>
+          <div class="step-label">Thông tin</div>
+        </div>
+        <div class="step" data-step="2">
+          <div class="step-dot">2</div>
+          <div class="step-label">Thanh toán</div>
+        </div>
+        <div class="step" data-step="3">
+          <div class="step-dot">3</div>
+          <div class="step-label">Xác nhận</div>
+        </div>
+      </section>
+
+      <section class="checkout-layout">
+        <section class="checkout-main">
+          <!-- Step 1 -->
+          <div class="step-panel" id="stepPanel1">
+            <h2 class="panel-title">Bước 1: Thông tin người nhận</h2>
+            <form id="receiverForm" class="form-grid">
+              <div class="field">
+                <label for="receiverName">Họ tên</label>
+                <input id="receiverName" type="text" placeholder="Nhập họ tên" autocomplete="name" />
+              </div>
+              <div class="field">
+                <label for="receiverPhone">Số điện thoại</label>
+                <input id="receiverPhone" type="text" placeholder="Nhập số điện thoại" autocomplete="tel" />
+              </div>
+              <div class="field field--full">
+                <label for="receiverEmail">Email (tuỳ chọn)</label>
+                <input id="receiverEmail" type="email" placeholder="Nhập email" autocomplete="email" />
+              </div>
+              <div class="field field--full">
+                <label for="receiverProvince">Tỉnh/Thành</label>
+                <div class="select-field-v3__control" id="provinceControl">
+                  <input
+                    type="text"
+                    id="receiverProvinceSearch"
+                    placeholder="Chọn Tỉnh/Thành"
+                    autocomplete="off"
+                    class="select-field-v3__input"
+                  />
+                  <span class="select-field-v3__chevron" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M4 6L8 10L12 6" stroke="#71717A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                  </span>
+                </div>
+                <div class="select-field-v3__dropdown" id="provinceDropdown" style="display:none" role="listbox"></div>
+              </div>
+
+              <div class="field field--full">
+                <label for="receiverDistrict">Quận/Huyện</label>
+                <div class="select-field-v3__control" id="districtControl">
+                  <input
+                    type="text"
+                    id="receiverDistrictSearch"
+                    placeholder="Chọn Quận/Huyện"
+                    autocomplete="off"
+                    class="select-field-v3__input"
+                    disabled
+                  />
+                  <span class="select-field-v3__chevron" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M4 6L8 10L12 6" stroke="#71717A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                  </span>
+                </div>
+                <div class="select-field-v3__dropdown" id="districtDropdown" style="display:none" role="listbox"></div>
+              </div>
+
+              <div class="field field--full">
+                <label for="receiverWard">Phường/Xã</label>
+                <div class="select-field-v3__control" id="wardControl">
+                  <input
+                    type="text"
+                    id="receiverWardSearch"
+                    placeholder="Chọn Phường/Xã"
+                    autocomplete="off"
+                    class="select-field-v3__input"
+                    disabled
+                  />
+                  <span class="select-field-v3__chevron" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M4 6L8 10L12 6" stroke="#71717A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                  </span>
+                </div>
+                <div class="select-field-v3__dropdown" id="wardDropdown" style="display:none" role="listbox"></div>
+              </div>
+              <div class="field field--full">
+                <label for="receiverAddressLine">Số nhà / Đường</label>
+                <input id="receiverAddressLine" type="text" placeholder="VD: 12 Nguyễn Trãi" autocomplete="street-address" />
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn btn-primary" id="toStep2Btn">Tiếp tục</button>
+              </div>
+              <div id="receiverMessage" class="form-message" aria-live="polite"></div>
+            </form>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="step-panel" id="stepPanel2" style="display:none">
+            <h2 class="panel-title">Bước 2: Phương thức thanh toán & Voucher</h2>
+
+            <div class="pay-grid">
+              <div class="pay-card">
+                <div class="radio-row">
+                  <label class="radio">
+                    <input type="radio" name="paymentMethod" value="COD" checked />
+                    <span>Thanh toán khi nhận (COD)</span>
+                  </label>
+                  <label class="radio">
+                    <input type="radio" name="paymentMethod" value="vnpay" />
+                    <span>VNPay / Chuyển khoản ngân hàng</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="pay-card">
+                <div class="voucher">
+                  <label for="voucherCode">Voucher (tuỳ chọn)</label>
+                  <div class="voucher-input">
+                    <input id="voucherCode" type="text" placeholder="Nhập mã voucher" />
+                    <button id="applyVoucherBtn" class="btn btn-secondary" type="button">Áp dụng</button>
+                  </div>
+                  <div id="voucherMessage" class="form-message" aria-live="polite"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" class="btn btn-ghost" id="backToStep1Btn">Quay lại</button>
+              <button type="button" class="btn btn-primary" id="toStep3Btn">Tiếp tục</button>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="step-panel" id="stepPanel3" style="display:none">
+            <h2 class="panel-title">Bước 3: Xác nhận đơn</h2>
+
+            <div class="confirm-grid">
+              <div class="confirm-card">
+                <h3>Thông tin nhận hàng</h3>
+                <div class="confirm-line"><span>Họ tên</span><strong id="confirmName">—</strong></div>
+                <div class="confirm-line"><span>Điện thoại</span><strong id="confirmPhone">—</strong></div>
+                <div class="confirm-line"><span>Email</span><strong id="confirmEmail">—</strong></div>
+                <div class="confirm-line"><span>Địa chỉ</span><strong id="confirmAddress">—</strong></div>
+              </div>
+
+              <div class="confirm-card">
+                <h3>Tóm tắt giá</h3>
+                <div class="summary-line"><span>Tạm tính</span><strong id="sumSubtotal">0 đ</strong></div>
+                <div class="summary-line"><span>Vận chuyển</span><strong id="sumShipping">0 đ</strong></div>
+                <div class="summary-line"><span>Giảm giá</span><strong id="sumDiscount">0 đ</strong></div>
+                <div class="summary-total"><span>Tổng cộng</span><strong id="sumFinal">0 đ</strong></div>
+                <div class="summary-method"><span>Phương thức</span><strong id="sumPayment">—</strong></div>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" class="btn btn-ghost" id="backToStep2Btn">Quay lại</button>
+              <button type="button" class="btn btn-primary" id="placeOrderBtn">Đặt hàng</button>
+            </div>
+
+            <div id="checkoutMessage" class="checkout-message" aria-live="polite"></div>
+          </div>
+        </section>
+
+        <aside class="checkout-aside">
+          <div class="aside-card">
+            <h3 class="aside-title">Giỏ hàng</h3>
+            <div id="asideCartList" class="aside-items"></div>
+            <div class="aside-divider"></div>
+
+            <div class="aside-row"><span>Tạm tính</span><strong id="asideSubtotal">0 đ</strong></div>
+            <div class="aside-row"><span>Vận chuyển</span><strong id="asideShipping">0 đ</strong></div>
+            <div class="aside-row"><span>Giảm giá</span><strong id="asideDiscount">0 đ</strong></div>
+            <div class="aside-total"><span>Tổng</span><strong id="asideFinal">0 đ</strong></div>
+
+            <div class="aside-hint">
+              Miễn phí vận chuyển cho đơn từ 500.000đ (demo).
+            </div>
+          </div>
+
+          <div class="aside-card aside-history" >
+            <h3 class="aside-title">Lịch sử mua hàng</h3>
+            <div id="ordersMount" class="history-list"></div>
+            <div id="ordersEmpty" class="muted" style="display:none">Chưa có đơn.</div>
+            <div class="aside-hint">
+              Đăng nhập để xem đầy đủ lịch sử.
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Modal chuyển khoản ngân hàng -->
+    <div id="bankTransferModal" class="bank-modal" style="display:none" aria-modal="true" role="dialog">
+      <div class="bank-modal__overlay"></div>
+      <div class="bank-modal__content">
+        <button type="button" class="bank-modal__close" id="bankModalClose" aria-label="Đóng">×</button>
+        <h2 class="bank-modal__title">Chuyển khoản ngân hàng</h2>
+        <p class="bank-modal__desc">Vui lòng chuyển khoản theo thông tin dưới đây để hoàn tất đơn hàng.</p>
+
+        <div class="bank-modal__info">
+          <div class="bank-modal__row"><span>Ngân hàng</span><strong id="bankName">—</strong></div>
+          <div class="bank-modal__row"><span>Số tài khoản</span><strong id="bankAccountNumber">—</strong></div>
+          <div class="bank-modal__row"><span>Chủ tài khoản</span><strong id="bankAccountHolder">—</strong></div>
+          <div class="bank-modal__row"><span>Số tiền</span><strong id="bankAmount">—</strong></div>
+          <div class="bank-modal__row"><span>Nội dung CK</span><strong id="bankTransferContent">—</strong></div>
+        </div>
+
+        <div class="bank-modal__pay-options">
+          <p>Hoặc thanh toán qua VNPay:</p>
+          <div id="vnpayQrContainer" class="bank-modal__qr" style="display:none">
+            <a id="vnpayPayLink" href="#" target="_blank" rel="noreferrer" class="btn btn-primary" style="display:inline-block;margin-bottom:10px">
+              <i class="fas fa-credit-card"></i> Thanh toán VNPay
+            </a>
+            <div id="vnpayQrCode"></div>
+          </div>
+          <div id="vnpayNotConfigured" class="bank-modal__message" style="display:none">VNPay chưa được cấu hình.</div>
+        </div>
+
+        <div class="bank-modal__timer">
+          <i class="fa-solid fa-clock"></i> Mã thanh toán còn hiệu lực: <strong id="bankTimer">05:00</strong>
+        </div>
+
+        <div class="bank-modal__actions">
+          <button type="button" class="btn btn-ghost" id="bankModalCancel">Đóng</button>
+          <button type="button" class="btn btn-primary" id="bankModalContinue">Tôi đã chuyển khoản</button>
+        </div>
+
+        <div id="bankModalMessage" class="bank-modal__message" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <script src="../../components/header/partials.js"></script>
+    <script type="module" src="../../components/thanh-toan/thanh-toan.js?v=3"></script>
+  </body>
+</html>

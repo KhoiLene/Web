@@ -70,3 +70,21 @@
   font-size: 12px;
   color: var(--gray);
 }
+
+/* Tab đánh giá (để tránh lệch layout khi chuyển tab) */
+#tabDanhgia {
+  padding: 18px 4px;
+}
+
+#reviewFormWrapper {
+  margin: 4px 0 18px;
+}
+
+#reviewList {
+  margin-top: 8px;
+}
+
+.empty-note {
+  color: var(--gray);
+  font-size: 14px;
+}

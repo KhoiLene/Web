@@ -122,14 +122,30 @@
 //     return { subtotal, shipping, discount, final };
 //   }
 
+//   const STEP_STORAGE_KEY = "techtra_checkout_step";
+
 //   function setActiveStep(step) {
-//     $stepPanel1.style.display = step === 1 ? "block" : "none";
-//     $stepPanel2.style.display = step === 2 ? "block" : "none";
-//     $stepPanel3.style.display = step === 3 ? "block" : "none";
+//     $stepPanel1.style. = step === 1 ? "block" : "none";
+//     $stepPanel2.style. = step === 2 ? "block" : "none";
+//     $stepPanel3.style. = step === 3 ? "block" : "none";
 
 //     $stepper.forEach((el) => {
 //       el.dataset.active = String(el.getAttribute("data-step") === String(step));
 //     });
+//   }
+
+//   function setCurrentStep(step) {
+//     const s = Number(step);
+//     if (![1, 2, 3].includes(s)) return;
+//     sessionStorage.setItem(STEP_STORAGE_KEY, String(s));
+//     setActiveStep(s);
+//   }
+
+//   function restoreStepFromStorage() {
+//     const raw = sessionStorage.getItem(STEP_STORAGE_KEY);
+//     const s = raw ? Number(raw) : 1;
+//     if (![1, 2, 3].includes(s)) return 1;
+//     return s;
 //   }
 
 //   let cart = [];
@@ -227,14 +243,16 @@
 //     }
 //   }
 
+//   // Region state (chỉ dùng bộ 3 biến này làm nguồn sự thật; UI thực tế là
+//   // select-field-v3 với input tìm kiếm + dropdown, không còn <select> nữa).
 //   let regionProvinceCode = null;
 //   let regionDistrictCode = null;
 //   let regionWardCode = null;
 
 //   function getAddressString() {
-//     const provinceName = $receiverProvince.options[$receiverProvince.selectedIndex]?.text || "";
-//     const districtName = $receiverDistrict.options[$receiverDistrict.selectedIndex]?.text || "";
-//     const wardName = $receiverWard.options[$receiverWard.selectedIndex]?.text || "";
+//     const provinceName = $receiverProvinceSearch.value.trim();
+//     const districtName = $receiverDistrictSearch.value.trim();
+//     const wardName = $receiverWardSearch.value.trim();
 //     const line = $receiverAddressLine.value.trim();
 
 //     return [line, wardName, districtName, provinceName].filter(Boolean).join(", ");
@@ -243,193 +261,70 @@
 //   function validateStep1() {
 //     const name = $receiverName.value.trim();
 //     const phone = $receiverPhone.value.trim();
-//     const province = $receiverProvince.value;
-//     const district = $receiverDistrict.value;
-//     const ward = $receiverWard.value;
 //     const line = $receiverAddressLine.value.trim();
 
 //     if (!name) return "Vui lòng nhập họ tên.";
 //     if (!phone || phone.length < 8) return "Vui lòng nhập số điện thoại hợp lệ.";
-//     if (!province) return "Vui lòng chọn tỉnh/thành.";
-//     if (!district) return "Vui lòng chọn quận/huyện.";
-//     if (!ward) return "Vui lòng chọn phường/xã.";
+//     if (!regionProvinceCode) return "Vui lòng chọn tỉnh/thành.";
+//     if (!regionDistrictCode) return "Vui lòng chọn quận/huyện.";
+//     if (!regionWardCode) return "Vui lòng chọn phường/xã.";
 //     if (!line) return "Vui lòng nhập số nhà / đường.";
 //     return null;
 //   }
 
 //   // ─────────────────────────────────────────────
-//   // VN Region API autocomplete (tỉnh -> quận -> phường)
-//   // ─────────────────────────────────────────────
-//   const VN_REGION_BASE = "https://huynhminhvangit.github.io/vn-region-api";
-
-//   function parsePreJson(html) {
-//     const match = html.match(/<pre>([\s\S]*?)<\/pre>/s);
-//     if (!match) return null;
-//     try {
-//       return JSON.parse(match[1]);
-//     } catch {
-//       return null;
-//     }
-//   }
-
-//   function closeAllSuggest() {
-//     $provinceSuggest?.classList.remove("is-open");
-//     $districtSuggest?.classList.remove("is-open");
-//     $wardSuggest?.classList.remove("is-open");
-//   }
-
-//   function renderSuggest($el, items, onPick) {
-//     if (!$el) return;
-//     if (!items?.length) {
-//       $el.innerHTML = "";
-//       $el.classList.remove("is-open");
-//       return;
-//     }
-
-//     $el.innerHTML = items
-//       .slice(0, 12)
-//       .map(
-//         (it, idx) => `<div class="region-suggest-item" data-idx="${idx}">${it.name}</div>`
-//       )
-//       .join("");
-
-//     $el.classList.add("is-open");
-
-//     $el.onclick = (e) => {
-//       const itemEl = e.target.closest(".region-suggest-item");
-//       if (!itemEl) return;
-//       const idx = Number(itemEl.getAttribute("data-idx"));
-//       const picked = items[idx];
-//       if (!picked) return;
-//       onPick(picked);
-//       closeAllSuggest();
-//     };
-//   }
-
-//   async function searchProvinces(q) {
-//     const url = `${VN_REGION_BASE}/api/provinces.html?name=${encodeURIComponent(q)}`;
-//     const res = await fetch(url);
-//     const html = await res.text();
-//     return parsePreJson(html) || [];
-//   }
-
-//   async function searchDistrictsByProvinceCode(provinceCode, q) {
-//     // API wards page có province_code, và thường districts có endpoint tương tự.
-//     // Trang hướng dẫn bạn đưa nhấn provinces + wards; với districts ta dùng cấu trúc thường: /api/districts.html?province_code=...
-//     const url = `${VN_REGION_BASE}/api/districts.html?province_code=${encodeURIComponent(provinceCode)}`;
-//     const res = await fetch(url);
-//     const html = await res.text();
-//     const districts = parsePreJson(html) || [];
-//     const query = String(q || "").toLowerCase().trim();
-//     if (!query) return districts;
-//     return districts.filter((d) => String(d.name || "").toLowerCase().includes(query));
-//   }
-
-//   async function searchWardsByDistrictCode(districtCode, q) {
-//     // WARDS endpoint: /api/wards.html?district_code=... (đã được nhắc trong trang)
-//     const url = `${VN_REGION_BASE}/api/wards.html?district_code=${encodeURIComponent(districtCode)}`;
-//     const res = await fetch(url);
-//     const html = await res.text();
-//     const wards = parsePreJson(html) || [];
-//     const query = String(q || "").toLowerCase().trim();
-//     if (!query) return wards;
-//     return wards.filter((w) => String(w.name || "").toLowerCase().includes(query));
-//   }
-
-//   function enableDistricts(enable) {
-//     $receiverDistrict.disabled = !enable;
-//     $receiverDistrictSearch.disabled = !enable;
-//     if (!enable) {
-//       $receiverDistrict.value = "";
-//       $receiverWard.value = "";
-//       $receiverAddressLine.value = "";
-//       regionDistrictCode = null;
-//       regionWardCode = null;
-//     }
-//   }
-
-//   function enableWards(enable) {
-//     $receiverWard.disabled = !enable;
-//     $receiverWardSearch.disabled = !enable;
-//     if (!enable) {
-//       $receiverWard.value = "";
-//       $receiverAddressLine.value = "";
-//       regionWardCode = null;
-//     }
-//   }
-
-//   function setSelectOptions($select, items, { valueKey = "code", labelKey = "name" } = {}) {
-//     const options = (items || []).map((it) => {
-//       const value = String(it[valueKey] ?? "");
-//       const label = String(it[labelKey] ?? "");
-//       return `<option value="${value}">${label}</option>`;
-//     });
-//     $select.innerHTML = options.join("");
-//   }
-
 //   // provinces.open-api.vn (cascade endpoints)
+//   // ─────────────────────────────────────────────
 //   const OPEN_API_BASE = "https://provinces.open-api.vn/api";
 
 //   async function loadAllProvincesSelect() {
 //     const res = await fetch(`${OPEN_API_BASE}/p/`);
 //     const json = await res.json();
-//     // assume array with { code, name }
-//     return (json || []).map((p) => ({
-//       code: String(p.code ?? ""),
-//       name: String(p.name ?? ""),
-//     })).filter((p) => p.code && p.name);
+//     return (json || [])
+//       .map((p) => ({ code: String(p.code ?? ""), name: String(p.name ?? "") }))
+//       .filter((p) => p.code && p.name);
 //   }
 
 //   async function loadDistrictsSelect(provinceCode) {
 //     const res = await fetch(`${OPEN_API_BASE}/p/${encodeURIComponent(provinceCode)}?depth=2`);
 //     const json = await res.json();
-//     // often returns { districts: [...] }
 //     const districts = json?.districts || json?.data?.districts || json || [];
-//     return (districts || []).map((d) => ({
-//       code: String(d.code ?? d.codename ?? ""),
-//       name: String(d.name ?? d.district_name ?? d.division_name ?? ""),
-//     })).filter((d) => d.code && d.name);
+//     return (districts || [])
+//       .map((d) => ({
+//         code: String(d.code ?? d.codename ?? ""),
+//         name: String(d.name ?? d.district_name ?? d.division_name ?? ""),
+//       }))
+//       .filter((d) => d.code && d.name);
 //   }
 
 //   async function loadWardsSelect(districtCode) {
 //     const res = await fetch(`${OPEN_API_BASE}/d/${encodeURIComponent(districtCode)}?depth=2`);
 //     const json = await res.json();
-//     // often returns { wards: [...] }
 //     const wards = json?.wards || json?.data?.wards || json || [];
-//     return (wards || []).map((w) => ({
-//       code: String(w.code ?? w.codename ?? ""),
-//       name: String(w.name ?? w.ward_name ?? w.division_name ?? ""),
-//     })).filter((w) => w.code && w.name);
+//     return (wards || [])
+//       .map((w) => ({
+//         code: String(w.code ?? w.codename ?? ""),
+//         name: String(w.name ?? w.ward_name ?? w.division_name ?? ""),
+//       }))
+//       .filter((w) => w.code && w.name);
 //   }
 
 //   let provincesCache = [];
 //   let districtsCache = [];
 //   let wardsCache = [];
 
-//   function filterAndSetSelect($select, items, q) {
-//     const query = String(q || "").toLowerCase().trim();
-//     const filtered = query
-//       ? (items || []).filter((it) => String(it.name || "").toLowerCase().includes(query))
-//       : (items || []);
-
-//     $select.innerHTML = filtered.length
-//       ? filtered.map((it) => `<option value="${it.code}">${it.name}</option>`).join("")
-//       : `<option value="">Không có kết quả</option>`;
-//   }
-
 //   async function initRegionSelect() {
-//     // NOTE: UI đã chuyển sang select-field-v3 (dropdown div), nên không còn dùng <select size=...> nữa.
-//     // Mở dropdown bằng click/focus và chọn item bằng click.
+//     // UI dùng select-field-v3 (input + dropdown div), chọn item bằng click.
 
 //     function closeAllDropdowns() {
-//       $provinceDropdown.style.display = "none";
-//       $districtDropdown.style.display = "none";
-//       $wardDropdown.style.display = "none";
+//       $provinceDropdown.style. = "none";
+//       $districtDropdown.style. = "none";
+//       $wardDropdown.style. = "none";
 //     }
 
 //     function openDropdown($dd) {
 //       closeAllDropdowns();
-//       $dd.style.display = "block";
+//       $dd.style. = "block";
 //     }
 
 //     function filterItems(items, q) {
@@ -482,6 +377,13 @@
 //       closeAllDropdowns();
 //     });
 
+//     // Dùng named handlers + { once:true } / removeEventListener để tránh
+//     // đăng ký listener chồng chất mỗi lần đổi tỉnh/quận.
+//     let districtFocusHandler = null;
+//     let districtInputHandler = null;
+//     let wardFocusHandler = null;
+//     let wardInputHandler = null;
+
 //     $receiverProvinceSearch.addEventListener("focus", () => {
 //       openDropdown($provinceDropdown);
 //       renderItems($provinceDropdown, filterItems(provincesCache, $receiverProvinceSearch.value), (picked) => {
@@ -525,25 +427,17 @@
 
 //       $receiverDistrictSearch.value = "";
 //       $receiverWardSearch.value = "";
-//       $districtDropdown.style.display = "none";
-//       $wardDropdown.style.display = "none";
+//       $districtDropdown.style. = "none";
+//       $wardDropdown.style. = "none";
 
 //       districtsCache = await loadDistrictsSelect(localProvinceCode);
 
 //       $receiverDistrictSearch.focus();
 
-//       $receiverDistrictSearch.addEventListener("focus", () => {
-//         openDropdown($districtDropdown);
-//         renderItems($districtDropdown, filterItems(districtsCache, $receiverDistrictSearch.value), (picked) => {
-//           localDistrictCode = picked.code;
-//           regionDistrictCode = picked.code;
-//           $receiverDistrictSearch.value = picked.name;
-//           closeAllDropdowns();
-//           initWardFlow();
-//         });
-//       }, { once: true });
+//       if (districtFocusHandler) $receiverDistrictSearch.removeEventListener("focus", districtFocusHandler);
+//       if (districtInputHandler) $receiverDistrictSearch.removeEventListener("input", districtInputHandler);
 
-//       $receiverDistrictSearch.addEventListener("input", () => {
+//       districtFocusHandler = () => {
 //         openDropdown($districtDropdown);
 //         renderItems($districtDropdown, filterItems(districtsCache, $receiverDistrictSearch.value), (picked) => {
 //           localDistrictCode = picked.code;
@@ -552,7 +446,20 @@
 //           closeAllDropdowns();
 //           initWardFlow();
 //         });
-//       });
+//       };
+//       districtInputHandler = () => {
+//         openDropdown($districtDropdown);
+//         renderItems($districtDropdown, filterItems(districtsCache, $receiverDistrictSearch.value), (picked) => {
+//           localDistrictCode = picked.code;
+//           regionDistrictCode = picked.code;
+//           $receiverDistrictSearch.value = picked.name;
+//           closeAllDropdowns();
+//           initWardFlow();
+//         });
+//       };
+
+//       $receiverDistrictSearch.addEventListener("focus", districtFocusHandler);
+//       $receiverDistrictSearch.addEventListener("input", districtInputHandler);
 
 //       const q = String($receiverDistrictSearch.value || "").toLowerCase().trim();
 //       const exact = (districtsCache || []).find((it) => String(it.name || "").toLowerCase() === q);
@@ -568,19 +475,13 @@
 //     async function initWardFlow() {
 //       if (!localDistrictCode) return;
 //       $receiverWardSearch.disabled = false;
+//       $receiverWardSearch.value = "";
 //       wardsCache = await loadWardsSelect(localDistrictCode);
 
-//       $receiverWardSearch.addEventListener("focus", () => {
-//         openDropdown($wardDropdown);
-//         renderItems($wardDropdown, filterItems(wardsCache, $receiverWardSearch.value), (picked) => {
-//           localWardCode = picked.code;
-//           regionWardCode = picked.code;
-//           $receiverWardSearch.value = picked.name;
-//           closeAllDropdowns();
-//         });
-//       }, { once: true });
+//       if (wardFocusHandler) $receiverWardSearch.removeEventListener("focus", wardFocusHandler);
+//       if (wardInputHandler) $receiverWardSearch.removeEventListener("input", wardInputHandler);
 
-//       $receiverWardSearch.addEventListener("input", () => {
+//       wardFocusHandler = () => {
 //         openDropdown($wardDropdown);
 //         renderItems($wardDropdown, filterItems(wardsCache, $receiverWardSearch.value), (picked) => {
 //           localWardCode = picked.code;
@@ -588,7 +489,19 @@
 //           $receiverWardSearch.value = picked.name;
 //           closeAllDropdowns();
 //         });
-//       });
+//       };
+//       wardInputHandler = () => {
+//         openDropdown($wardDropdown);
+//         renderItems($wardDropdown, filterItems(wardsCache, $receiverWardSearch.value), (picked) => {
+//           localWardCode = picked.code;
+//           regionWardCode = picked.code;
+//           $receiverWardSearch.value = picked.name;
+//           closeAllDropdowns();
+//         });
+//       };
+
+//       $receiverWardSearch.addEventListener("focus", wardFocusHandler);
+//       $receiverWardSearch.addEventListener("input", wardInputHandler);
 
 //       const q = String($receiverWardSearch.value || "").toLowerCase().trim();
 //       const exact = (wardsCache || []).find((it) => String(it.name || "").toLowerCase() === q);
@@ -599,103 +512,6 @@
 //         closeAllDropdowns();
 //       }
 //     }
-
-//     // TODO: đã chuyển sang select-field-v3, xoá toàn bộ legacy <select> handlers phía dưới.
-//     // (Khối code cũ đã được gỡ dần nhưng vẫn còn sót; phần còn sót sẽ bị xoá ở bản tiếp theo.)
-
-//     // Legacy block intentionally removed to fix SyntaxError.
-
-//     return;
-
-
-//       // reset quận/phường
-//       $receiverDistrict.innerHTML = `<option value="">Chọn quận/huyện</option>`;
-//       $receiverWard.innerHTML = `<option value="">Chọn phường/xã</option>`;
-//       regionDistrictCode = null;
-//       regionWardCode = null;
-
-//       if (!regionProvinceCode) {
-//         enableDistricts(false);
-//         enableWards(false);
-//         return;
-//       }
-
-//       enableDistricts(true);
-//       enableWards(false);
-//       $receiverDistrictSearch.disabled = false;
-
-//       try {
-//         districtsCache = await loadDistrictsSelect(regionProvinceCode);
-//         $receiverDistrict.disabled = false;
-//         filterAndSetSelect($receiverDistrict, [{ code: "", name: "Chọn quận/huyện" }, ...districtsCache], $receiverDistrictSearch.value);
-//       } catch (e) {
-//         $receiverDistrict.innerHTML = `<option value="">Không tải được quận/huyện</option>`;
-//         $receiverDistrict.disabled = true;
-//       }
-//     });
-
-//     $receiverDistrictSearch.addEventListener("focus", () => {
-//       $receiverDistrict.size = 8;
-//     });
-//     $receiverDistrictSearch.addEventListener("blur", () => {
-//       setTimeout(() => {
-//         if (document.activeElement !== $receiverDistrictSearch) {
-//           $receiverDistrict.size = 0;
-//         }
-//       }, 120);
-//     });
-
-//     $receiverDistrictSearch.addEventListener("input", () => {
-//       const items = [{ code: "", name: "Chọn quận/huyện" }, ...districtsCache];
-//       filterAndSetSelect($receiverDistrict, items, $receiverDistrictSearch.value);
-//       // auto-select exact
-//       const q = String($receiverDistrictSearch.value || "").toLowerCase().trim();
-//       const match = items.find((it) => String(it.name || "").toLowerCase() === q);
-//       if (match) $receiverDistrict.value = match.code;
-//     });
-
-//     $receiverWardSearch.addEventListener("focus", () => {
-//       $receiverWard.size = 8;
-//     });
-//     $receiverWardSearch.addEventListener("blur", () => {
-//       setTimeout(() => {
-//         if (document.activeElement !== $receiverWardSearch) {
-//           $receiverWard.size = 0;
-//         }
-//       }, 120);
-//     });
-
-//     $receiverWardSearch.addEventListener("input", () => {
-//       const items = [{ code: "", name: "Chọn phường/xã" }, ...wardsCache];
-//       filterAndSetSelect($receiverWard, items, $receiverWardSearch.value);
-//       const q = String($receiverWardSearch.value || "").toLowerCase().trim();
-//       const match = items.find((it) => String(it.name || "").toLowerCase() === q);
-//       if (match) $receiverWard.value = match.code;
-//     });
-
-//     $receiverDistrict.addEventListener("change", async () => {
-//       const code = $receiverDistrict.value;
-//       regionDistrictCode = code || null;
-
-//       $receiverWard.innerHTML = `<option value="">Chọn phường/xã</option>`;
-//       regionWardCode = null;
-
-//       if (!regionDistrictCode) {
-//         enableWards(false);
-//         return;
-//       }
-
-//       enableWards(true);
-//       $receiverWardSearch.disabled = false;
-//       try {
-//         wardsCache = await loadWardsSelect(regionDistrictCode);
-//         $receiverWard.disabled = false;
-//         filterAndSetSelect($receiverWard, [{ code: "", name: "Chọn phường/xã" }, ...wardsCache], $receiverWardSearch.value);
-//       } catch (e) {
-//         $receiverWard.innerHTML = `<option value="">Không tải được phường/xã</option>`;
-//         $receiverWard.disabled = true;
-//       }
-//     });
 //   }
 
 //   async function loadCustomerProfileIfLoggedIn() {
@@ -723,7 +539,7 @@
 //     const customerIdRaw = localStorage.getItem("techtra_customer_id");
 //     const customerId = customerIdRaw ? Number(customerIdRaw) : null;
 //     if (!customerId) {
-//       $ordersEmpty.style.display = "block";
+//       $ordersEmpty.style. = "block";
 //       return;
 //     }
 
@@ -741,17 +557,17 @@
 
 //     const list = data || [];
 //     if (!list.length) {
-//       $ordersEmpty.style.display = "block";
+//       $ordersEmpty.style. = "block";
 //       return;
 //     }
 
-//     $ordersEmpty.style.display = "none";
+//     $ordersEmpty.style. = "none";
 //     $ordersMount.innerHTML = list
 //       .map(
 //         (o) => `
 //           <div class="history-item">
 //             <strong>${o.order_code}</strong>
-//             <span>${o.status} • ${formatVND(o.final_price)} • ${new Date(o.created_at).toLocaleDateString("vi-VN")}</span>
+//             <span>${o.status} • ${formatVND(o.final_price)} • ${formatDateVN(o.created_at)}</span>
 //           </div>
 //         `
 //       )
@@ -783,20 +599,38 @@
 
 //     try {
 //       // Create order
+//       // const insertPayload = {
+//       //   customer_id: customerId,
+//       //   receiver_name: $receiverName.value.trim(),
+//       //   receiver_phone: $receiverPhone.value.trim(),
+//       //   receiver_email: $receiverEmail.value.trim() || null,
+//       //   receiver_address: getAddressString(),
+//       //   shipping_fee: totals.shipping,
+//       //   subtotal_price: totals.subtotal,
+//       //   discount_price: totals.discount,
+//       //   final_price: totals.final,
+//       //   payment_method: paymentMethod,
+//       //   voucher_code: voucherCode,
+//       //   status: "PENDING",
+//       // };
 //       const insertPayload = {
-//         customer_id: customerId,
-//         receiver_name: $receiverName.value.trim(),
-//         receiver_phone: $receiverPhone.value.trim(),
-//         receiver_email: $receiverEmail.value.trim() || null,
-//         receiver_address: getAddressString(),
-//         shipping_fee: totals.shipping,
-//         subtotal_price: totals.subtotal,
-//         discount_price: totals.discount,
-//         final_price: totals.final,
-//         payment_method: paymentMethod,
-//         voucher_code: voucherCode,
-//         status: "PENDING",
-//       };
+//   customer_id: customerId,
+//   receiver_name: $receiverName.value.trim(),
+//   receiver_phone: $receiverPhone.value.trim(),
+//   receiver_email: $receiverEmail.value.trim() || null,
+//   receiver_address: getAddressString(), // giữ lại chuỗi gộp cho tương thích ngược
+//   receiver_address_line: $receiverAddressLine.value.trim(),
+//   receiver_ward: $receiverWardSearch.value.trim() || null,
+//   receiver_district: $receiverDistrictSearch.value.trim() || null,
+//   receiver_province: $receiverProvinceSearch.value.trim() || null,
+//   shipping_fee: totals.shipping,
+//   subtotal_price: totals.subtotal,
+//   discount_price: totals.discount,
+//   final_price: totals.final,
+//   payment_method: paymentMethod,
+//   voucher_code: voucherCode,
+//   status: "PENDING",
+// };
 
 //       // Khi DB chưa khớp schema, supabase insert sẽ fail; nhưng ta vẫn cố gắng theo naming phổ biến.
 //       const { data: orderData, error: orderError } = await supabase
@@ -858,18 +692,18 @@
 //       return;
 //     }
 //     $receiverMessage.textContent = "";
-//     setActiveStep(2);
+//     setCurrentStep(2);
 //     renderAsideCart();
 //   });
 
-//   $backToStep1Btn?.addEventListener("click", () => setActiveStep(1));
+//   $backToStep1Btn?.addEventListener("click", () => setCurrentStep(1));
 
 //   $toStep3Btn?.addEventListener("click", () => {
-//     setActiveStep(3);
+//     setCurrentStep(3);
 //     renderConfirm();
 //   });
 
-//   $backToStep2Btn?.addEventListener("click", () => setActiveStep(2));
+//   $backToStep2Btn?.addEventListener("click", () => setCurrentStep(2));
 
 //   $placeOrderBtn?.addEventListener("click", placeOrder);
 
@@ -902,8 +736,9 @@
 //       return;
 //     }
 
-//     // ensure stepper
-//     setActiveStep(1);
+//     // restore step (giữ nguyên khi reload trong cùng tab)
+//     const restoredStep = restoreStepFromStorage();
+//     setActiveStep(restoredStep);
 
 //     renderAsideCart();
 
@@ -927,8 +762,7 @@
 //   });
 // })();
 
-
-import { supabase } from "../api-service/api.js";
+import { request } from "../api-service/api.js";
 
 (function () {
   const CART_KEY = "techtra_cart";
@@ -992,11 +826,33 @@ import { supabase } from "../api-service/api.js";
   const $ordersMount = document.getElementById("ordersMount");
   const $ordersEmpty = document.getElementById("ordersEmpty");
 
+  // Bank transfer modal elements
+  const $bankModal = document.getElementById("bankTransferModal");
+  const $bankModalClose = document.getElementById("bankModalClose");
+  const $bankModalCancel = document.getElementById("bankModalCancel");
+  const $bankModalContinue = document.getElementById("bankModalContinue");
+  const $bankModalMessage = document.getElementById("bankModalMessage");
+  const $bankName = document.getElementById("bankName");
+  const $bankAccountNumber = document.getElementById("bankAccountNumber");
+  const $bankAccountHolder = document.getElementById("bankAccountHolder");
+  const $bankAmount = document.getElementById("bankAmount");
+  const $bankTransferContent = document.getElementById("bankTransferContent");
+  const $bankTimer = document.getElementById("bankTimer");
+  const $vnpayQrContainer = document.getElementById("vnpayQrContainer");
+  const $vnpayPayLink = document.getElementById("vnpayPayLink");
+  const $vnpayQrCode = document.getElementById("vnpayQrCode");
+  const $vnpayNotConfigured = document.getElementById("vnpayNotConfigured");
+
   const $stepper = document.querySelectorAll(".step[data-step]");
 
   function formatVND(n) {
     const num = Number(n || 0);
     return num.toLocaleString("vi-VN") + " đ";
+  }
+
+  function formatDateVN(iso) {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
   }
 
   function getCartFromKeys() {
@@ -1053,7 +909,6 @@ import { supabase } from "../api-service/api.js";
   }
 
   const STEP_STORAGE_KEY = "techtra_checkout_step";
-  const DRAFT_STORAGE_KEY = "techtra_checkout_draft";
 
   function setActiveStep(step) {
     $stepPanel1.style.display = step === 1 ? "block" : "none";
@@ -1065,20 +920,11 @@ import { supabase } from "../api-service/api.js";
     });
   }
 
-  function setCurrentStep(step, { pushHistory = false } = {}) {
+  function setCurrentStep(step) {
     const s = Number(step);
     if (![1, 2, 3].includes(s)) return;
-
     sessionStorage.setItem(STEP_STORAGE_KEY, String(s));
     setActiveStep(s);
-
-    if (pushHistory) {
-      try {
-        history.pushState({ checkoutStep: s }, "", window.location.href);
-      } catch {
-        // ignore
-      }
-    }
   }
 
   function restoreStepFromStorage() {
@@ -1086,67 +932,6 @@ import { supabase } from "../api-service/api.js";
     const s = raw ? Number(raw) : 1;
     if (![1, 2, 3].includes(s)) return 1;
     return s;
-  }
-
-  function persistDraftFromUI() {
-    const receiverAddressLine = $receiverAddressLine?.value?.trim() || "";
-
-    const draft = {
-      receiverName: $receiverName?.value?.trim() || "",
-      receiverPhone: $receiverPhone?.value?.trim() || "",
-      receiverEmail: $receiverEmail?.value?.trim() || "",
-      receiverAddressLine,
-      voucherCode: $voucherCode?.value?.trim() || "",
-      paymentMethod:
-        document.querySelector('input[name="paymentMethod"]:checked')?.value || "COD",
-      // currentVoucher là object nội bộ (được set khi apply voucher)
-      currentVoucher,
-    };
-
-    sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
-  }
-
-  function restoreDraftToUI() {
-    try {
-      const raw = sessionStorage.getItem(DRAFT_STORAGE_KEY);
-      if (!raw) return;
-      const draft = JSON.parse(raw);
-
-      if ($receiverName && typeof draft.receiverName === "string") {
-        $receiverName.value = draft.receiverName;
-      }
-      if ($receiverPhone && typeof draft.receiverPhone === "string") {
-        $receiverPhone.value = draft.receiverPhone;
-      }
-      if ($receiverEmail && typeof draft.receiverEmail === "string") {
-        $receiverEmail.value = draft.receiverEmail;
-      }
-      if ($receiverAddressLine && typeof draft.receiverAddressLine === "string") {
-        $receiverAddressLine.value = draft.receiverAddressLine;
-      }
-
-      if ($voucherCode && typeof draft.voucherCode === "string") {
-        $voucherCode.value = draft.voucherCode;
-      }
-
-      // payment method
-      const pm = draft.paymentMethod;
-      if (pm) {
-        const checked = document.querySelector(
-          `input[name="paymentMethod"][value="${pm}"]`
-        );
-        if (checked) checked.checked = true;
-      }
-
-      if (draft.currentVoucher) {
-        currentVoucher = draft.currentVoucher;
-      }
-
-      // Sync aside/cart totals with restored voucher
-      renderAsideCart();
-    } catch {
-      // ignore
-    }
   }
 
   let cart = [];
@@ -1191,7 +976,7 @@ import { supabase } from "../api-service/api.js";
     $confirmAddress.textContent = getAddressString() || "—";
 
     const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked')?.value || "COD";
-    $sumPayment.textContent = paymentMethod === "COD" ? "COD" : "Chuyển khoản";
+    $sumPayment.textContent = paymentMethod === "COD" ? "COD" : "VNPay / Chuyển khoản";
 
     const totals = calcTotals(cart, currentVoucher);
     $sumSubtotal.textContent = formatVND(totals.subtotal);
@@ -1205,14 +990,12 @@ import { supabase } from "../api-service/api.js";
     const trimmed = String(code).trim();
     if (!trimmed) return null;
 
-    const { data, error } = await supabase
-      .from("v_active_vouchers")
-      .select("*")
-      .eq("code", trimmed)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data || null;
+    const r = await request(
+      "GET",
+      `/db/v_active_vouchers?select=*&code=eq.${encodeURIComponent(trimmed)}&limit=1`
+    );
+    const list = r.data || [];
+    return list[0] || null;
   }
 
   async function applyVoucher() {
@@ -1515,64 +1298,208 @@ import { supabase } from "../api-service/api.js";
     }
   }
 
+  function getLoggedInUser() {
+    try {
+      const raw = localStorage.getItem("techtra_user");
+      if (!raw || raw === "null") return null;
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  function getLoggedInUserId() {
+    const user = getLoggedInUser();
+    // orders.customer_id is the FK referencing customers.id; backend login returns customer_id.
+    return user?.customer_id ? Number(user.customer_id) : null;
+  }
+
+  function getLoggedInUserInfo() {
+    const user = getLoggedInUser() || {};
+    return {
+      name: user.full_name || user.name || user.username || '',
+      phone: user.phone || '',
+      email: user.email || '',
+      address: user.address || '',
+    };
+  }
+
   async function loadCustomerProfileIfLoggedIn() {
-    const customerIdRaw = localStorage.getItem("techtra_customer_id");
-    const customerId = customerIdRaw ? Number(customerIdRaw) : null;
-    if (!customerId) return;
+    const userId = getLoggedInUserId();
+    if (!userId) return;
 
-    const { data, error } = await supabase
-      .from("customers")
-      .select("name,phone,email,address")
-      .eq("id", customerId)
-      .single();
+    try {
+      const r = await request("GET", `/db/customers?select=name,phone,email,address&id=eq.${userId}&limit=1`);
+      const data = (r.data || [])[0];
+      if (!data) return;
 
-    if (error) return;
-    if (!data) return;
-
-    $receiverName.value = data.name || "";
-    $receiverPhone.value = data.phone || "";
-    $receiverEmail.value = data.email || "";
-    // Backward: nếu address đang lưu format tự do, mình nhét vào line address.
-    $receiverAddressLine.value = data.address || "";
+      $receiverName.value = data.name || "";
+      $receiverPhone.value = data.phone || "";
+      $receiverEmail.value = data.email || "";
+      // Backward: nếu address đang lưu format tự do, mình nhét vào line address.
+      $receiverAddressLine.value = data.address || "";
+    } catch (err) {
+      console.warn("loadCustomerProfileIfLoggedIn error", err);
+    }
   }
 
   async function loadOrdersPreview() {
-    const customerIdRaw = localStorage.getItem("techtra_customer_id");
-    const customerId = customerIdRaw ? Number(customerIdRaw) : null;
-    if (!customerId) {
+    const userId = getLoggedInUserId();
+    if (!userId) {
       $ordersEmpty.style.display = "block";
+      $ordersEmpty.textContent = "Vui lòng đăng nhập để xem lịch sử đơn hàng.";
+      $ordersMount.innerHTML = "";
       return;
     }
 
-    const { data, error } = await supabase
-      .from("v_orders_full")
-      .select("order_code,final_price,status,created_at")
-      .eq("customer_id", customerId)
-      .order("created_at", { ascending: false })
-      .limit(8);
+    try {
+      const r = await request(
+        "GET",
+        `/db/orders?select=order_code,final_price,status,created_at&customer_id=eq.${userId}&order=created_at.desc&limit=8`
+      );
+      const list = r.data || [];
+      if (!list.length) {
+        $ordersEmpty.style.display = "block";
+        $ordersEmpty.textContent = "Chưa có đơn.";
+        $ordersMount.innerHTML = "";
+        return;
+      }
 
-    if (error) {
-      console.warn("loadOrdersPreview error", error);
-      return;
-    }
-
-    const list = data || [];
-    if (!list.length) {
+      $ordersEmpty.style.display = "none";
+      $ordersMount.innerHTML = list
+        .map(
+          (o) => `
+            <div class="history-item">
+              <strong>${o.order_code}</strong>
+              <span>${o.status} • ${formatVND(o.final_price)} • ${formatDateVN(o.created_at)}</span>
+            </div>
+          `
+        )
+        .join("");
+    } catch (err) {
+      console.warn("loadOrdersPreview error", err);
       $ordersEmpty.style.display = "block";
+      $ordersEmpty.textContent = "Không tải được lịch sử đơn hàng.";
+      $ordersMount.innerHTML = "";
+    }
+  }
+
+  // ─── Bank transfer modal logic ──────────────────────────────────
+  let bankTimerInterval = null;
+  let bankTimeLeftSeconds = 0;
+  let bankConfigCache = null;
+
+  async function loadBankConfig() {
+    if (bankConfigCache) return bankConfigCache;
+    try {
+      const keys = ["bank_name", "bank_account_number", "bank_account_holder"];
+      const inVal = `(${keys.map((k) => `"${k}"`).join(",")})`;
+      const r = await request("GET", `/db/site_settings?select=key,value&key=in.${inVal}`);
+      const cfg = {};
+      (r.data || []).forEach((row) => { cfg[row.key] = row.value; });
+      bankConfigCache = cfg;
+      return cfg;
+    } catch (err) {
+      console.warn("loadBankConfig error", err);
+      return {};
+    }
+  }
+
+  function generateTempOrderId() {
+    return `TMP${Date.now()}`;
+  }
+
+  async function createVnpayPaymentUrl(amount, orderId) {
+    try {
+      const r = await request("POST", "/payment/vnpay/create", {
+        amount,
+        orderId,
+        orderDesc: `Thanh toan don hang ${orderId}`,
+      });
+      return r?.data?.paymentUrl || null;
+    } catch (err) {
+      console.warn("createVnpayPaymentUrl error", err);
+      return null;
+    }
+  }
+
+  function renderVnpayQr(paymentUrl) {
+    if (!paymentUrl) {
+      $vnpayQrContainer.style.display = "none";
+      $vnpayNotConfigured.style.display = "block";
       return;
     }
+    $vnpayPayLink.href = paymentUrl;
+    $vnpayQrContainer.style.display = "block";
+    $vnpayNotConfigured.style.display = "none";
+    $vnpayQrCode.innerHTML = "";
+    // Simple QR via Google Chart API (no extra lib needed)
+    const size = 200;
+    const encoded = encodeURIComponent(paymentUrl);
+    const qrUrl = `https://chart.googleapis.com/chart?cht=qr&chs=${size}x${size}&chl=${encoded}&choe=UTF-8`;
+    const img = document.createElement("img");
+    img.src = qrUrl;
+    img.alt = "QR VNPay";
+    img.width = size;
+    img.height = size;
+    $vnpayQrCode.appendChild(img);
+  }
 
-    $ordersEmpty.style.display = "none";
-    $ordersMount.innerHTML = list
-      .map(
-        (o) => `
-          <div class="history-item">
-            <strong>${o.order_code}</strong>
-            <span>${o.status} • ${formatVND(o.final_price)} • ${new Date(o.created_at).toLocaleDateString("vi-VN")}</span>
-          </div>
-        `
-      )
-      .join("");
+  function openBankModal() {
+    const tempOrderId = generateTempOrderId();
+    loadBankConfig().then(async (cfg) => {
+      $bankName.textContent = cfg.bank_name || "Chưa cấu hình";
+      $bankAccountNumber.textContent = cfg.bank_account_number || "—";
+      $bankAccountHolder.textContent = cfg.bank_account_holder || "—";
+      const totals = calcTotals(cart, currentVoucher);
+      $bankAmount.textContent = formatVND(totals.final);
+      $bankTransferContent.textContent = `Thanh toan don hang Techtra ${tempOrderId}`;
+      $bankModalMessage.textContent = "";
+      $bankModal.style.display = "flex";
+      startBankTimer(5 * 60);
+
+      const vnpayUrl = await createVnpayPaymentUrl(totals.final, tempOrderId);
+      renderVnpayQr(vnpayUrl);
+    });
+  }
+
+  function closeBankModal() {
+    $bankModal.style.display = "none";
+    stopBankTimer();
+  }
+
+  function startBankTimer(seconds) {
+    stopBankTimer();
+    bankTimeLeftSeconds = seconds;
+    updateBankTimerDisplay();
+    bankTimerInterval = setInterval(() => {
+      bankTimeLeftSeconds -= 1;
+      updateBankTimerDisplay();
+      if (bankTimeLeftSeconds <= 0) {
+        stopBankTimer();
+        // Hết hạn: chuyển sang COD và đóng modal
+        const codRadio = document.querySelector('input[name="paymentMethod"][value="COD"]');
+        if (codRadio) codRadio.checked = true;
+        closeBankModal();
+        $bankModalMessage.textContent = "";
+        if ($checkoutMessage) {
+          $checkoutMessage.textContent = "Hết thờigian chuyển khoản. Đã chuyển sang thanh toán khi nhận (COD).";
+        }
+      }
+    }, 1000);
+  }
+
+  function stopBankTimer() {
+    if (bankTimerInterval) {
+      clearInterval(bankTimerInterval);
+      bankTimerInterval = null;
+    }
+  }
+
+  function updateBankTimerDisplay() {
+    const m = Math.floor(Math.max(0, bankTimeLeftSeconds) / 60);
+    const s = Math.max(0, bankTimeLeftSeconds) % 60;
+    $bankTimer.textContent = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   }
 
   async function placeOrder() {
@@ -1593,36 +1520,41 @@ import { supabase } from "../api-service/api.js";
     const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked')?.value || "COD";
     const voucherCode = ($voucherCode.value || "").trim() || null;
 
-    const customerIdRaw = localStorage.getItem("techtra_customer_id");
-    const customerId = customerIdRaw ? Number(customerIdRaw) : null;
+    const userId = getLoggedInUserId();
 
     const totals = calcTotals(cart, currentVoucher);
 
     try {
       // Create order
+      const receiverName  = $receiverName.value.trim();
+      const receiverPhone = $receiverPhone.value.trim();
+      const receiverAddr  = getAddressString();
       const insertPayload = {
-        customer_id: customerId,
-        receiver_name: $receiverName.value.trim(),
-        receiver_phone: $receiverPhone.value.trim(),
-        receiver_email: $receiverEmail.value.trim() || null,
-        receiver_address: getAddressString(),
-        shipping_fee: totals.shipping,
+        customer_id: userId,
+        // Cột mới (FE đang đọc)
+        receiver_name:    receiverName,
+        receiver_phone:   receiverPhone,
+        receiver_email:   $receiverEmail.value.trim() || null,
+        receiver_address: receiverAddr,
+        // Cột cũ (admin view v_orders_full + các trang admin dùng customer_name / customer_phone / address)
+        // Ghi song song để admin hiển thị tên KH mà không cần sửa view.
+        customer_name:    receiverName,
+        customer_phone:   receiverPhone,
+        address:          receiverAddr,
+        // Tiền / voucher
+        shipping_fee:  totals.shipping,
         subtotal_price: totals.subtotal,
         discount_price: totals.discount,
-        final_price: totals.final,
+        final_price:    totals.final,
         payment_method: paymentMethod,
-        voucher_code: voucherCode,
-        status: "PENDING",
+        voucher_code:   voucherCode,
+        // status lowercase để khớp DB default + admin filter "Chờ xác nhận"
+        status: "pending",
       };
 
-      // Khi DB chưa khớp schema, supabase insert sẽ fail; nhưng ta vẫn cố gắng theo naming phổ biến.
-      const { data: orderData, error: orderError } = await supabase
-        .from("orders")
-        .insert(insertPayload)
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
+      // Khi DB chưa khớp schema, insert sẽ fail; nhưng ta vẫn cố gắng theo naming phổ biến.
+      const resp = await request("POST", "/db/orders", insertPayload);
+      const orderData = resp?.data || resp;
 
       const orderId = orderData?.id;
       const orderCode = orderData?.order_code || orderData?.code || orderData?.id;
@@ -1639,8 +1571,10 @@ import { supabase } from "../api-service/api.js";
         line_total: it.price * it.quantity,
       }));
 
-      const { error: itemsError } = await supabase.from("order_items").insert(itemsPayload);
-      if (itemsError) throw itemsError;
+      // Generic POST chỉ insert 1 row — loop từng item
+      for (const row of itemsPayload) {
+        await request("POST", "/db/order_items", row);
+      }
 
       // Clear local buynow/cart
       localStorage.removeItem(BUY_NOW_KEY);
@@ -1663,18 +1597,9 @@ import { supabase } from "../api-service/api.js";
   }
 
   // Events
-  $applyVoucherBtn?.addEventListener("click", () => {
-    applyVoucher().finally(() => {
-      persistDraftFromUI();
-    });
-  });
+  $applyVoucherBtn?.addEventListener("click", applyVoucher);
   $voucherCode?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      applyVoucher().finally(() => {
-        persistDraftFromUI();
-      });
-    }
+    if (e.key === "Enter") applyVoucher();
   });
 
   $toStep2Btn?.addEventListener("click", () => {
@@ -1683,41 +1608,40 @@ import { supabase } from "../api-service/api.js";
       $receiverMessage.textContent = err;
       return;
     }
-    persistDraftFromUI();
     $receiverMessage.textContent = "";
-    setCurrentStep(2, { pushHistory: true });
+    setCurrentStep(2);
     renderAsideCart();
   });
 
-  $backToStep1Btn?.addEventListener("click", () => {
-    persistDraftFromUI();
-    setCurrentStep(1, { pushHistory: true });
-  });
+  $backToStep1Btn?.addEventListener("click", () => setCurrentStep(1));
 
   $toStep3Btn?.addEventListener("click", () => {
-    persistDraftFromUI();
-    setCurrentStep(3, { pushHistory: true });
-    renderConfirm();
+    const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked')?.value || "COD";
+    if (paymentMethod === "vnpay") {
+      openBankModal();
+    } else {
+      setCurrentStep(3);
+      renderConfirm();
+    }
   });
 
-  $backToStep2Btn?.addEventListener("click", () => {
-    persistDraftFromUI();
-    setCurrentStep(2, { pushHistory: true });
-  });
-
-  // trình duyệt Back/Forward điều khiển step
-  window.addEventListener("popstate", (event) => {
-    const stepFromHistory = event?.state?.checkoutStep;
-    if (![1, 2, 3].includes(Number(stepFromHistory))) return;
-
-    setActiveStep(Number(stepFromHistory));
-    // đồng bộ lại input/voucher/payment
-    restoreDraftToUI();
-    // đảm bảo confirm hiển thị đúng khi quay về step 3
-    if (Number(stepFromHistory) === 3) renderConfirm();
-  });
+  $backToStep2Btn?.addEventListener("click", () => setCurrentStep(2));
 
   $placeOrderBtn?.addEventListener("click", placeOrder);
+
+  // Bank modal events
+  $bankModalClose?.addEventListener("click", closeBankModal);
+  $bankModalCancel?.addEventListener("click", closeBankModal);
+  $bankModalContinue?.addEventListener("click", () => {
+    closeBankModal();
+    setCurrentStep(3);
+    renderConfirm();
+  });
+  $bankModal?.addEventListener("click", (e) => {
+    if (e.target === $bankModal || e.target.classList.contains("bank-modal__overlay")) {
+      // không đóng khi click overlay, chỉ đóng khi bấm nút
+    }
+  });
 
   async function syncHeaderCart() {
     try {
@@ -1752,14 +1676,7 @@ import { supabase } from "../api-service/api.js";
     const restoredStep = restoreStepFromStorage();
     setActiveStep(restoredStep);
 
-    // restore draft fields
-    restoreDraftToUI();
-
-    if (restoredStep === 3) {
-      renderConfirm();
-    } else {
-      renderAsideCart();
-    }
+    renderAsideCart();
 
     // Đợi header partial render xong rồi cập nhật dữ liệu header
     if (!window.__TECHTRA_PARTIALS_READY__) {

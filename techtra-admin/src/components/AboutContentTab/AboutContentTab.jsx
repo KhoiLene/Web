@@ -1891,6 +1891,7 @@ import "./AboutcontentTab.css";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { aboutContentApi, uploadGroupsApi } from "../../api";
 import RichTextToolbar from "./RichTextToolbar";
+import { sanitizeHtml } from "./htmlPasteSanitizer";
 
 // Key phải khớp với ve-techtra.js — đây là bài đang được PUBLISH (hiển thị live)
 const ABOUT_STORAGE_KEY = "about_us_content";
@@ -1940,6 +1941,7 @@ function htmlToPreviewText(htmlStr, maxLen = 80) {
 function formatDate(iso) {
   try {
     return new Date(iso).toLocaleString("vi-VN", {
+      timeZone: "Asia/Ho_Chi_Minh",
       day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
     });
   } catch {
@@ -2003,6 +2005,8 @@ export default function AboutContentTab({ parentGroups: parentGroupsProp, childr
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [publishedContent, setPublishedContent] = useState("");
+  const [publishedLoading, setPublishedLoading] = useState(false);
   const editorRef = useRef(null);
   const previewRef = useRef(null);
 
@@ -2145,6 +2149,31 @@ export default function AboutContentTab({ parentGroups: parentGroupsProp, childr
     })();
   }, [groupId, fetchPosts, loadEditor]);
 
+  // ─── Panel "Xem trước trên Về Techtra public" ───
+  // Mỗi khi đổi group: gọi aboutContentApi.get(group.id) để lấy đúng content
+  // đã publish lên Supabase (cùng nguồn với shop ve-techtra-moi?slug=…).
+  // Render qua cùng hàm sanitizeHtml() mà shop dùng → preview khớp 100% với
+  // những gì khách hàng thực sự thấy trên trang Về Techtra.
+  useEffect(() => {
+    if (!groupId) {
+      setPublishedContent("");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setPublishedLoading(true);
+      try {
+        const res = await aboutContentApi.get(groupId);
+        if (!cancelled) setPublishedContent(res?.content || "");
+      } catch {
+        if (!cancelled) setPublishedContent("");
+      } finally {
+        if (!cancelled) setPublishedLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [groupId]);
+
   useEffect(() => {
     if (posts.length && !selectedPostId) {
       const latest = posts[0];
@@ -2266,6 +2295,8 @@ export default function AboutContentTab({ parentGroups: parentGroupsProp, childr
       /* backend chưa sẵn sàng, vẫn publish tạm ở trình duyệt bên dưới */
     }
     localStorage.setItem(ABOUT_STORAGE_KEY, content);
+    // Refresh panel preview bên phải để user thấy ngay kết quả đã publish
+    setPublishedContent(content);
     setSaved(true);
   };
 
@@ -2371,78 +2402,111 @@ export default function AboutContentTab({ parentGroups: parentGroupsProp, childr
           )}
         </div>
 
-        {/* ─── Khung soạn thảo ─── */}
-        <div className="up-content-editor-col">
-          <p className="up-hint" style={{ marginBottom: 8 }}>
-            Gõ mô tả hoặc dán trực tiếp (Ctrl+V) nội dung từ Word/Google Docs — toàn bộ định dạng gốc
-            (font chữ, màu, in đậm/nghiêng, ảnh, bố cục...) sẽ được giữ nguyên y hệt.
-          </p>
+        {/* ─── Layout 2 cột: editor bên trái | preview trên Về Techtra public bên phải ─── */}
+        <div className="up-editor-cols">
+          {/* ─── Khung soạn thảo ─── */}
+          <div className="up-content-editor-col">
+            <p className="up-hint" style={{ marginBottom: 8 }}>
+              Gõ mô tả hoặc dán trực tiếp (Ctrl+V) nội dung từ Word/Google Docs — toàn bộ định dạng gốc
+              (font chữ, màu, in đậm/nghiêng, ảnh, bố cục...) sẽ được giữ nguyên y hệt.
+            </p>
 
-          <RichTextToolbar editorRef={editorRef} onChange={handleInput} />
+            <RichTextToolbar editorRef={editorRef} onChange={handleInput} />
 
-          {hasSelectedImage && (
-            <div className="up-img-resize-toolbar">
-              <span>Ảnh đã chọn:</span>
-              <button type="button" className="up-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => adjustSelectedImageSize(0.9)}>
-                <i className="fas fa-search-minus" /> Thu nhỏ
-              </button>
-              <button type="button" className="up-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => adjustSelectedImageSize(1.1)}>
-                <i className="fas fa-search-plus" /> Phóng to
-              </button>
-              <button type="button" className="up-btn" onMouseDown={(e) => e.preventDefault()} onClick={resetSelectedImageSize}>
-                Về gốc
-              </button>
-              <span className="up-hint">Hoặc kéo tay cầm ở góc ảnh để chỉnh trực tiếp</span>
-            </div>
-          )}
-
-          <div className="up-editor-wrap" style={{ position: "relative" }}>
-            <div
-              ref={editorRef}
-              className="up-editor"
-              contentEditable
-              suppressContentEditableWarning
-              onPaste={handlePaste}
-              onInput={handleInput}
-              onClick={handleEditorClick}
-              dangerouslySetInnerHTML={{ __html: html }}
-              style={{
-                width: "100%",
-                padding: "12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "8px",
-                boxSizing: "border-box",
-                fontSize: "14px",
-                outline: "none",
-                minHeight: "160px",
-                backgroundColor: "white",
-                overflowY: "auto",
-                lineHeight: 1.6,
-              }}
-            />
-            {hasSelectedImage && selectedImageRef.current && (
-              <div
-                className="up-img-resize-handle"
-                onMouseDown={handleResizeHandleMouseDown}
-                style={(() => {
-                  const wrap = editorRef.current?.getBoundingClientRect();
-                  const img = selectedImageRef.current.getBoundingClientRect();
-                  if (!wrap) return { display: "none" };
-                  return {
-                    left: img.right - wrap.left + editorRef.current.scrollLeft - 8,
-                    top: img.bottom - wrap.top + editorRef.current.scrollTop - 8,
-                  };
-                })()}
-              />
+            {hasSelectedImage && (
+              <div className="up-img-resize-toolbar">
+                <span>Ảnh đã chọn:</span>
+                <button type="button" className="up-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => adjustSelectedImageSize(0.9)}>
+                  <i className="fas fa-search-minus" /> Thu nhỏ
+                </button>
+                <button type="button" className="up-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => adjustSelectedImageSize(1.1)}>
+                  <i className="fas fa-search-plus" /> Phóng to
+                </button>
+                <button type="button" className="up-btn" onMouseDown={(e) => e.preventDefault()} onClick={resetSelectedImageSize}>
+                  Về gốc
+                </button>
+                <span className="up-hint">Hoặc kéo tay cầm ở góc ảnh để chỉnh trực tiếp</span>
+              </div>
             )}
+
+            <div className="up-editor-wrap" style={{ position: "relative" }}>
+              <div
+                ref={editorRef}
+                className="up-editor"
+                contentEditable
+                suppressContentEditableWarning
+                onPaste={handlePaste}
+                onInput={handleInput}
+                onClick={handleEditorClick}
+                dangerouslySetInnerHTML={{ __html: html }}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "8px",
+                  boxSizing: "border-box",
+                  fontSize: "14px",
+                  outline: "none",
+                  minHeight: "160px",
+                  backgroundColor: "white",
+                  overflowY: "auto",
+                  lineHeight: 1.6,
+                }}
+              />
+              {hasSelectedImage && selectedImageRef.current && (
+                <div
+                  className="up-img-resize-handle"
+                  onMouseDown={handleResizeHandleMouseDown}
+                  style={(() => {
+                    const wrap = editorRef.current?.getBoundingClientRect();
+                    const img = selectedImageRef.current.getBoundingClientRect();
+                    if (!wrap) return { display: "none" };
+                    return {
+                      left: img.right - wrap.left + editorRef.current.scrollLeft - 8,
+                      top: img.bottom - wrap.top + editorRef.current.scrollTop - 8,
+                    };
+                  })()}
+                />
+              )}
+            </div>
+
+            <div className="up-editor-preview-label">Xem trước khi đang soạn (state hiện tại của editor):</div>
+            <div
+              ref={previewRef}
+              className="up-editor-preview prose"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
           </div>
 
-          <div className="up-editor-preview-label">Xem trước (đúng như trang Về Techtra sẽ hiển thị):</div>
-          <div
-            ref={previewRef}
-            className="up-editor-preview prose"
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
+          {/* ─── Panel mới: render đúng như trang Về Techtra public (từ Supabase) ─── */}
+          <div className="up-content-published-col">
+            <div className="up-editor-preview-label">
+              Trên trang Về Techtra (đã publish):
+            </div>
+            {publishedLoading ? (
+              <div className="up-loading" style={{ padding: 32 }}>⌛ Đang tải từ Supabase…</div>
+            ) : (
+              <div
+                className="up-editor-preview prose"
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(publishedContent) }}
+              />
+            )}
+            <p className="up-hint" style={{ marginTop: 10 }}>
+              <i className="fas fa-link" />{" "}
+              <a
+                href={`${window.location.origin}/components/ve-techtra-moi/ve-techtra-moi.html?slug=${(() => {
+                  const opt = allOptions.find((g) => String(g.id) === String(groupId));
+                  return opt?.slug || "";
+                })()}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Mở trang public tương ứng
+              </a>
+              {" — "}panel này render cùng hàm sanitizeHtml + class <code>prose</code> như shop,
+              nên khớp 100% với những gì khách thấy.
+            </p>
+          </div>
         </div>
       </div>
     </div>

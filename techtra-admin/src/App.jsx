@@ -91,6 +91,8 @@ import DraftOrders from "./components/DonHang/DraftOrders.jsx";
 import IncompleteOrders from "./components/DonHang/IncompleteOrders.jsx";
 import Settings from "./components/Settings/Settings.jsx";
 import Dashboard from "./components/Dashboard/Dashboard.jsx";
+import AdminAccounts from "./components/AdminAccounts/AdminAccounts.jsx";
+import Reviews from "./components/Reviews/Reviews.jsx";
 
 // Key lưu trang đang mở vào localStorage, để reload (F5) vẫn giữ nguyên trang
 const CURRENT_PAGE_STORAGE_KEY = "app_current_page";
@@ -164,6 +166,12 @@ export default function App() {
 
       case "settings":
         return <Settings />;
+
+      case "admin-accounts":
+        return <AdminAccounts />;
+
+      case "reviews":
+        return <Reviews />;
 
       default:
         return (

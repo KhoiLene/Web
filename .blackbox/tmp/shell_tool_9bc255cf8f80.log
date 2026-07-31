@@ -1,0 +1,16 @@
+
+> techtra-backend@1.0.0 start
+> node server.js
+
+Server is running on port 5000
+Database connected successfully
+D:\Web1\backend\server.js:505
+  for (const [email, { expiresAt }] of emailVerificationCodes.entries()) {
+                                                              ^
+
+ReferenceError: emailVerificationCodes is not defined
+    at Timeout._onTimeout (D:\Web1\backend\server.js:505:63)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+
+Node.js v24.16.0

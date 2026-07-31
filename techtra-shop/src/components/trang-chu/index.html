@@ -6,7 +6,7 @@
     
     <!-- SEO Meta Tags -->
     <title>Techtra-Cung ứng dịch vụ hóa chất-Trang Chủ</title>
-    <meta name="description" content="Giao diện mẫu cao cấp lấy cảm hứng từ Cỏ Mềm Lab. Chuyên cung cấp mỹ phẩm 100% thiên nhiên, lành tính và an toàn cho cả mẹ bầu. Thiết kế sẵn vị trí tích hợp API sản phẩm và hình ảnh.">
+    <meta name="description" content="Giao diện mẫu cao cấp lấy cảm hứng từ TECHTRA Lab. Chuyên cung cấp mỹ phẩm 100% thiên nhiên, lành tính và an toàn cho cả mẹ bầu. Thiết kế sẵn vị trí tích hợp API sản phẩm và hình ảnh.">
     <meta name="keywords" content="mỹ phẩm thiên nhiên, cỏ mềm, cỏ mềm lab, mỹ phẩm thuần chay, son không chì, dầu gội thiên nhiên">
     
     <!-- Open Graph (Facebook / Zalo) -->
@@ -96,7 +96,55 @@
             </div>
         </section>
 
-        <!-- DYNAMIC PRODUCT CATEGORIES SECTION (API ready) -->
+        <!-- SLIDER GIỚI THIỆU (chạy chữ — slider_text từ product_groups) -->
+        <section class="slider-text-section" id="slider-text-section-el" style="display:none;">
+            <div class="slider-text-track" id="slider-text-track-el" aria-live="polite">
+                <!-- Render động: slider_text từ các nhóm CHA trong bảng product_groups -->
+            </div>
+        </section>
+
+        <!-- DYNAMIC PRODUCT CATEGORIES SECTION (rectangle cards, không tròn) -->
+        <!-- <section class="categories-section section-padding" id="categories-section-el">
+            <div class="container">
+                <div class="section-title-wrapper">
+                    <h2 class="section-title">Danh mục nổi bật</h2>
+                    <p class="section-subtitle">Khám phá các dòng sản phẩm thảo mộc an toàn và tự nhiên</p>
+                </div>
+
+                <div class="categories-grid" id="categories-container-el">
+                    -- Skeleton loading cards (rectangle) -->
+                    <!-- <div class="category-card skeleton-card">
+                        <div class="category-img-wrapper skeleton skeleton-rect"></div>
+                        <div class="category-info">
+                            <div class="skeleton skeleton-text" style="width: 60%; height: 20px; margin-bottom: 8px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 90%; height: 14px;"></div>
+                        </div>
+                    </div>
+                    <div class="category-card skeleton-card">
+                        <div class="category-img-wrapper skeleton skeleton-rect"></div>
+                        <div class="category-info">
+                            <div class="skeleton skeleton-text" style="width: 60%; height: 20px; margin-bottom: 8px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 90%; height: 14px;"></div>
+                        </div>
+                    </div>
+                    <div class="category-card skeleton-card">
+                        <div class="category-img-wrapper skeleton skeleton-rect"></div>
+                        <div class="category-info">
+                            <div class="skeleton skeleton-text" style="width: 60%; height: 20px; margin-bottom: 8px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 90%; height: 14px;"></div>
+                        </div>
+                    </div>
+                    <div class="category-card skeleton-card">
+                        <div class="category-img-wrapper skeleton skeleton-rect"></div>
+                        <div class="category-info">
+                            <div class="skeleton skeleton-text" style="width: 60%; height: 20px; margin-bottom: 8px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 90%; height: 14px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section> --> 
+        <!-- DYNAMIC PRODUCT CATEGORIES SECTION (khung tròn, giống value-card) -->
         <section class="categories-section section-padding" id="categories-section-el">
             <div class="container">
                 <div class="section-title-wrapper">
@@ -104,37 +152,45 @@
                     <p class="section-subtitle">Khám phá các dòng sản phẩm thảo mộc an toàn và tự nhiên</p>
                 </div>
 
-                <div class="categories-slider-wrapper">
-                    <div class="categories-grid" id="categories-container-el">
-                        <!-- Skeleton loading cards -->
-                        <!-- Loop of 6 items -->
-                        <div class="category-card">
-                            <div class="category-img-wrapper skeleton">
-                                <div class="skeleton-image"></div>
-                            </div>
-                            <div class="skeleton skeleton-text" style="width: 70%; height: 16px;"></div>
-                        </div>
-                        <div class="category-card">
-                            <div class="category-img-wrapper skeleton"><div class="skeleton-image"></div></div>
-                            <div class="skeleton skeleton-text" style="width: 70%; height: 16px;"></div>
-                        </div>
-                        <div class="category-card">
-                            <div class="category-img-wrapper skeleton"><div class="skeleton-image"></div></div>
-                            <div class="skeleton skeleton-text" style="width: 70%; height: 16px;"></div>
-                        </div>
-                        <div class="category-card">
-                            <div class="category-img-wrapper skeleton"><div class="skeleton-image"></div></div>
-                            <div class="skeleton skeleton-text" style="width: 70%; height: 16px;"></div>
-                        </div>
-                        <div class="category-card">
-                            <div class="category-img-wrapper skeleton"><div class="skeleton-image"></div></div>
-                            <div class="skeleton skeleton-text" style="width: 70%; height: 16px;"></div>
-                        </div>
-                        <div class="category-card">
-                            <div class="category-img-wrapper skeleton"><div class="skeleton-image"></div></div>
-                            <div class="skeleton skeleton-text" style="width: 70%; height: 16px;"></div>
+                <div class="categories-grid" id="categories-container-el">
+                    <!-- Skeleton loading cards -->
+                    <div class="category-card skeleton-card">
+                        <div class="category-img-wrapper skeleton skeleton-rect"></div>
+                        <div class="category-info">
+                            <div class="skeleton skeleton-text" style="width: 60%; height: 20px; margin-bottom: 8px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 90%; height: 14px;"></div>
                         </div>
                     </div>
+                    <div class="category-card skeleton-card">
+                        <div class="category-img-wrapper skeleton skeleton-rect"></div>
+                        <div class="category-info">
+                            <div class="skeleton skeleton-text" style="width: 60%; height: 20px; margin-bottom: 8px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 90%; height: 14px;"></div>
+                        </div>
+                    </div>
+                    <div class="category-card skeleton-card">
+                        <div class="category-img-wrapper skeleton skeleton-rect"></div>
+                        <div class="category-info">
+                            <div class="skeleton skeleton-text" style="width: 60%; height: 20px; margin-bottom: 8px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 90%; height: 14px;"></div>
+                        </div>
+                    </div>
+                    <div class="category-card skeleton-card">
+                        <div class="category-img-wrapper skeleton skeleton-rect"></div>
+                        <div class="category-info">
+                            <div class="skeleton skeleton-text" style="width: 60%; height: 20px; margin-bottom: 8px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 90%; height: 14px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- PHẦN GIỚI THIỆU PRODUCT GROUP (intro_title + intro_subtitle + intro_image_url) -->
+        <section class="intro-section section-padding" id="intro-section-el" style="display:none;">
+            <div class="container">
+                <div class="intro-list" id="intro-list-el">
+                    <!-- Render động từ product_groups: intro_title, intro_subtitle, intro_image_url -->
                 </div>
             </div>
         </section>
@@ -204,16 +260,13 @@
             <div class="container">
                 <div class="section-title-wrapper">
                     <h2 class="section-title">Sản phẩm bán chạy nhất</h2>
-                    <p class="section-subtitle">Những công thức thảo mộc tinh tế được hàng triệu phụ nữ Việt tin dùng</p>
+                    <p class="section-subtitle">Những sản phẩm được hàng triệu người Việt tin dùng</p>
                 </div>
 
                 <!-- Tabs navigation -->
-                <div class="best-sellers-tabs" id="tab-navigation-container">
-                    <button class="tab-btn active" data-tab-id="all">Tất cả</button>
-                    <button class="tab-btn" data-tab-id="skincare">Chăm sóc da</button>
-                    <button class="tab-btn" data-tab-id="haircare">Chăm sóc tóc</button>
-                    <button class="tab-btn" data-tab-id="makeup">Trang điểm</button>
-                </div>
+                <div class="tabs-nav" id="best-sellers-tabs-nav">
+                    <!-- Render động từ product_groups: group_name -->
+                </div>  
 
                 <!-- Grid containers for tabs -->
                 <!-- Standard skeleton layouts -->
@@ -286,7 +339,7 @@
         <section class="blog-section section-padding" id="blog-posts-section">
             <div class="container">
                 <div class="section-title-wrapper">
-                    <h2 class="section-title">Góc chia sẻ Cỏ Mềm</h2>
+                    <h2 class="section-title">Góc chia sẻ TECHTRA</h2>
                     <p class="section-subtitle">Kinh nghiệm chăm sóc sắc đẹp tự nhiên, lối sống xanh và bảo vệ môi trường</p>
                 </div>
 
@@ -348,7 +401,7 @@
         <div class="mobile-drawer-header">
             <div class="logo">
                 <svg width="120" height="32" viewBox="0 0 150 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <text x="0" y="28" font-family="'Montserrat', sans-serif" font-weight="700" font-size="24" fill="#005d37">CỎ MỀM</text>
+                    <text x="0" y="28" font-family="'Montserrat', sans-serif" font-weight="700" font-size="24" fill="#2563eb">TECHTRA</text>
                 </svg>
             </div>
             <button class="mobile-drawer-close" id="mobile-drawer-close-btn" aria-label="Đóng menu">
@@ -374,7 +427,7 @@
                 <li><a href="#" class="mobile-nav-link">Trang điểm</a></li>
                 <li><a href="#" class="mobile-nav-link">Chăm sóc cơ thể</a></li>
                 <li><a href="#" class="mobile-nav-link">Combo Quà tặng</a></li>
-                <li><a href="#" class="mobile-nav-link">Về Cỏ Mềm</a></li>
+                <li><a href="#" class="mobile-nav-link">Về TECHTRA</a></li>
                 <li><a href="#" class="mobile-nav-link">Hệ thống cửa hàng</a></li>
             </ul>
         </div>
@@ -399,7 +452,7 @@
                     <path d="M16 10a4 4 0 0 1-8 0"/>
                 </svg>
                 <p style="margin-top: 16px; font-weight: 500;">Giỏ hàng của bạn đang trống</p>
-                <p style="font-size: 0.85rem; margin-top: 6px;">Hãy thêm sản phẩm lành tính của Cỏ Mềm nhé!</p>
+                <p style="font-size: 0.85rem; margin-top: 6px;">Hãy thêm sản phẩm lành tính của TECHTRA nhé!</p>
             </div>
             
             <!-- Items list wrapper (shown when items exist) -->
@@ -423,7 +476,8 @@
     <!-- Main Logic Script -->
     <script type="module" src="../../components/trang-chu/homepage-bridge.js"></script>
     <!-- Load header/footer partials (chạy trước app.js để DOM sẵn sàng) -->
-    <script src="../../components/tin-tuc/partials.js"></script>
+    <script src="../../components/header/partials.js"></script>
+    <script src="../../components/header/app-news-menu.js"></script>
     <script src="../../components/trang-chu/app.js"></script>
 </body>
 </html>

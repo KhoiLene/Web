@@ -1,280 +1,124 @@
-// /* ============================================
-//    app-news-menu.js — Render menu BÀI VIẾT động
-//    ============================================
-//    - Query bảng `news_categories` từ Supabase
-//    - Build cây 2 cấp (root → children)
-//    - Gắn vào <div id="news-menu-mount"> trong heafer.html
-//    - Sub-items click → Tin_tuc/tin-tuc-theo-nhom.html?slug=...
-//    ============================================ */
-
-// (function () {
-//   "use strict";
-
-//   const SUPABASE_URL = "https://pbuqcvlcqrxdammvbwvs.supabase.co";
-//   const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBidXFjdmxjcXJ4ZGFtbXZid3ZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTA0NDAsImV4cCI6MjA5NzA4NjQ0MH0.YmRjW__dNqhhO0E8GUqoon6hqpA4k6rXYIFeV_PuVnY";
-
-//   async function loadSupabase() {
-//     if (window.supabase) return window.supabase;
-//     const mod = await import("https://esm.sh/@supabase/supabase-js@2");
-//     window.supabase = mod.createClient(SUPABASE_URL, SUPABASE_KEY);
-//     return window.supabase;
-//   }
-
-//   function esc(s = "") {
-//     return String(s)
-//       .replaceAll("&", "&amp;")
-//       .replaceAll("<", "&lt;")
-//       .replaceAll(">", "&gt;")
-//       .replaceAll('"', "&quot;");
-//   }
-
-//   function resolveBasePath() {
-//     // Dùng đường dẫn gốc từ techtra-shop root để không bị sai khi link này được render
-//     // trên trang con nằm trong Tin_tuc/ hoặc các thư mục khác.
-//     return "/components/tin-tuc/tin-tuc-theo-nhom.html?slug=";
-//   }
-
-//   function buildMenuHTML(tree) {
-//     if (!tree || !tree.length) return "";
-//     return tree
-//       .filter((r) => r.is_active !== false)
-//       .map((root) => {
-//         const children = (root.children || []).filter((c) => c.is_active !== false);
-//         const basePath = resolveBasePath();
-//         if (!children.length) {
-//           // Không có con → chỉ 1 dòng link
-//           return `
-//             <li>
-//               <a href="${esc(basePath + root.slug)}">
-//                 <i class="${esc(root.icon || "fas fa-folder")}"></i> ${esc(root.name)}
-//               </a>
-//             </li>`;
-//         }
-//         return `
-//           <li class="has-sub">
-//             <a href="${esc(basePath + root.slug)}">
-//               <i class="${esc(root.icon || "fas fa-folder")}"></i> ${esc(root.name)}
-//             </a>
-//             <ul>
-//               ${children
-//                 .map(
-//                   (c) => `
-//                 <li>
-//                   <a href="${esc(basePath + c.slug)}">${esc(c.name)}</a>
-//                 </li>`
-//                 )
-//                 .join("")}
-//             </ul>
-//           </li>`;
-//       })
-//       .join("");
-//   }
-
-//   async function render() {
-//     const mount = document.getElementById("news-menu-mount");
-//     if (!mount) return;
-
-//     // Lưu lại <ul> cũ (chứa "Tất cả bài viết")
-//     const baseUl = mount.querySelector("ul");
-//     if (!baseUl) return;
-
-//     try {
-//       const client = await loadSupabase();
-//       const { data, error } = await client
-//         .from("news_categories")
-//         .select("id, name, slug, icon, parent_id, is_active, sort_order")
-//         .order("sort_order", { ascending: true });
-//       if (error) throw error;
-
-//       const all = data || [];
-//       const roots = all
-//         .filter((r) => !r.parent_id)
-//         .map((r) => ({
-//           ...r,
-//           children: all
-//             .filter((c) => c.parent_id === r.id)
-//             .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
-//         }))
-//         .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-
-//       // Xoá các <li> cũ trừ "Tất cả bài viết" (li đầu tiên)
-//       const allItem = baseUl.querySelector("li");
-//       baseUl.innerHTML = "";
-//       if (allItem) baseUl.appendChild(allItem);
-//       // Thêm divider
-//       if (roots.length) {
-//         const sep = document.createElement("li");
-//         sep.style.cssText = "border-top:1px solid #f1f5f9;margin:4px 0;list-style:none;height:0;padding:0;";
-//         baseUl.appendChild(sep);
-//       }
-//       // Inject HTML động
-//       const tmp = document.createElement("div");
-//       tmp.innerHTML = buildMenuHTML(roots);
-//       while (tmp.firstChild) baseUl.appendChild(tmp.firstChild);
-
-//       console.log("[news-menu] rendered", roots.length, "root categories");
-//     } catch (err) {
-//       console.error("[news-menu] Lỗi:", err.message);
-//       // Giữ menu mặc định nếu lỗi
-//     }
-//   }
-
-//   // Đợi DOM + header partial ready
-//   function init() {
-//     // partials.js bắn event 'partials:loaded' khi header đã vào DOM
-//     if (document.getElementById("news-menu-mount")) {
-//       render();
-//     } else {
-//       document.addEventListener("partials:loaded", render, { once: true });
-//       // fallback: timeout 2s nếu event không bắn
-//       setTimeout(() => {
-//         if (document.getElementById("news-menu-mount")) render();
-//       }, 2000);
-//     }
-//   }
-
-//   if (document.readyState === "loading") {
-//     document.addEventListener("DOMContentLoaded", init);
-//   } else {
-//     init();
-//   }
-// })();
-
 /* ============================================
    app-news-menu.js — Render menu BÀI VIẾT động
    ============================================
-   - Query bảng `news_categories` từ Supabase
-   - Build cây 2 cấp (root → children)
-   - Gắn vào <div id="news-menu-mount"> trong heafer.html
-   - Sub-items click → Tin_tuc/tin-tuc-theo-nhom.html?slug=...
+   - Query bảng `news_categories` (nhóm cha) + `news_articles` (bài viết con) qua Backend Express
+   - Gắn vào mount point #newsMenuMount trong header.html
+   - Cấu trúc giống SẢN PHẨM: nhóm cha to, đen; bài viết con bên dưới
+   - Sau khi partials.js đã render menu chính, file này chỉ enrich thêm
+     danh sách bài viết con (nếu cần) — fallback an toàn nếu partials.js lỗi.
    ============================================ */
 
 (function () {
-  "use strict";
+  'use strict';
 
-  const SUPABASE_URL = "https://pbuqcvlcqrxdammvbwvs.supabase.co";
-  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBidXFjdmxjcXJ4ZGFtbXZid3ZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTA0NDAsImV4cCI6MjA5NzA4NjQ0MH0.YmRjW__dNqhhO0E8GUqoon6hqpA4k6rXYIFeV_PuVnY";
+  const API_BASE = (typeof window !== 'undefined' && window.__API_BASE__) || '/api';
 
-  async function loadSupabase() {
-    if (window.supabase) return window.supabase;
-    const mod = await import("https://esm.sh/@supabase/supabase-js@2");
-    window.supabase = mod.createClient(SUPABASE_URL, SUPABASE_KEY);
-    return window.supabase;
+  async function apiGet(path) {
+    const res = await fetch(`${API_BASE}${path}`);
+    const json = await res.json();
+    if (!res.ok || (json && json.success === false)) {
+      throw new Error((json && json.error) || `HTTP ${res.status}`);
+    }
+    return json.data || [];
   }
 
-  function esc(s = "") {
+  function esc(s = '') {
     return String(s)
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;");
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
   }
 
-  function resolveBasePath() {
-    // Dùng đường dẫn gốc từ techtra-shop root để không bị sai khi link này được render
-    // trên trang con nằm trong Tin_tuc/ hoặc các thư mục khác.
-    return "/components/tin-tuc/tin-tuc-theo-nhom.html?slug=";
+  function newsGroupHref(slug) {
+    return `/components/tin-tuc/tin-tuc-theo-nhom.html?slug=${encodeURIComponent(slug || '')}`;
+  }
+  function newsArticleHref(slug) {
+    return `/components/tin-tuc/tin-tuc-chi-tiet.html?slug=${encodeURIComponent(slug || '')}`;
   }
 
-  function buildMenuHTML(tree) {
-    if (!tree || !tree.length) return "";
-    return tree
-      .filter((r) => r.is_active !== false)
+  const ARROW_SVG = `
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path fill-rule="evenodd" clip-rule="evenodd" d="M7.99922 1.19922C4.24962 1.19922 1.19922 4.24962 1.19922 7.99922C1.19922 11.7488 4.24962 14.7992 7.99922 14.7992C11.7488 14.7992 14.7992 11.7488 14.7992 7.99922C14.7992 4.24962 11.7488 1.19922 7.99922 1.19922ZM8 16C3.5888 16 0 12.4112 0 8C0 3.5888 3.5888 0 8 0C12.4112 0 16 3.5888 16 8C16 12.4112 12.4112 16 8 16Z" fill="#2563eb"/>
+      <path fill-rule="evenodd" clip-rule="evenodd" d="M6.84559 11.3745C6.69199 11.3745 6.53759 11.3161 6.42079 11.1977C6.18719 10.9625 6.18799 10.5833 6.42239 10.3497L8.78399 7.99769L6.42239 5.64649C6.18799 5.41289 6.18719 5.03289 6.42079 4.79769C6.65439 4.56169 7.03359 4.56329 7.26879 4.79609L10.0576 7.57289C10.1704 7.68569 10.2336 7.83849 10.2336 7.99769C10.2336 8.15769 10.1704 8.31049 10.0576 8.42329L7.26879 11.1993C7.15199 11.3161 6.99839 11.3745 6.84559 11.3745Z" fill="#2563eb"/>
+    </svg>`;
+
+  // Render danh sách nhóm cha + nhóm con giống SẢN PHẨM
+  // Vì schema không có news_articles → danh sách con là nhóm CON (children)
+  function buildColumnsHTML(roots) {
+    if (!roots.length) return '<div class="menu-empty">Chưa có danh mục bài viết nào.</div>';
+
+    return roots
       .map((root) => {
-        const children = (root.children || []).filter((c) => c.is_active !== false);
-        const basePath = resolveBasePath();
-        if (!children.length) {
-          // Không có con → chỉ 1 dòng link
-          return `
-            <li class="news-menu__item">
-              <a href="${esc(basePath + root.slug)}">
-                <i class="${esc(root.icon || "fas fa-folder")}"></i> ${esc(root.name)}
-              </a>
-            </li>`;
-        }
+        const kids = root.children || [];
+        const itemsHtml = kids.length
+          ? kids.map((c) => `<li><a href="${esc(newsGroupHref(c.slug))}">${esc(c.name)}</a></li>`).join('')
+          : '<li><a href="#"><em>Đang cập nhật</em></a></li>';
+
         return `
-          <li class="news-menu__item has-sub">
-            <a href="${esc(basePath + root.slug)}">
-              <i class="${esc(root.icon || "fas fa-folder")}"></i> ${esc(root.name)}
+          <div class="menu-type-2__list-menu--item">
+            <a href="${esc(newsGroupHref(root.slug))}" class="menu-type-2__list-menu--item__title menu-type-new__title">
+              <span>${esc(root.name)}</span>
+              ${ARROW_SVG}
             </a>
-            <span class="news-menu__arrow"><i class="fa-solid fa-chevron-right"></i></span>
-            <ul class="news-menu__submenu">
-              ${children
-                .map(
-                  (c) => `
-                <li>
-                  <a href="${esc(basePath + c.slug)}">${esc(c.name)}</a>
-                </li>`
-                )
-                .join("")}
-            </ul>
-          </li>`;
+            <ul>${itemsHtml}</ul>
+          </div>`;
       })
-      .join("");
+      .join('');
   }
 
   async function render() {
-    const mount = document.getElementById("news-menu-mount");
+    const mount = document.getElementById('newsMenuMount');
     if (!mount) return;
 
-    // Lưu lại <ul> cũ (chứa "Tất cả bài viết")
-    const baseUl = mount.querySelector("ul");
-    if (!baseUl) return;
-    baseUl.classList.add("news-menu__list");
+    // Nếu partials.js đã render rồi và mount có nội dung, không ghi đè
+    if (mount.children.length > 0) {
+      // Nhưng vẫn enrich thêm bài viết con nếu nhóm cha đang hiển thị "Đang cập nhật"
+      const emptyCells = mount.querySelectorAll('li > a > em');
+      if (emptyCells.length === 0) return;
+    }
 
     try {
-      const client = await loadSupabase();
-      const { data, error } = await client
-        .from("news_categories")
-        .select("id, name, slug, icon, parent_id, is_active, sort_order")
-        .order("sort_order", { ascending: true });
-      if (error) throw error;
-
-      const all = data || [];
+      // Backend Express — query news_categories qua generic endpoint
+      const all = await apiGet(
+        '/db/news_categories?select=id,name,slug,icon,parent_id,is_active,sort_order&order=sort_order.asc'
+      );
+      if (!Array.isArray(all)) throw new Error('Invalid response from backend');
       const roots = all
-        .filter((r) => !r.parent_id)
+        .filter((r) => r.is_active !== false && !r.parent_id)
         .map((r) => ({
           ...r,
           children: all
-            .filter((c) => c.parent_id === r.id)
+            .filter((c) => c.parent_id === r.id && c.is_active !== false)
             .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
         }))
         .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 
-      // Xoá các <li> cũ trừ "Tất cả bài viết" (li đầu tiên)
-      const allItem = baseUl.querySelector("li");
-      if (allItem) allItem.classList.add("news-menu__item");
-      baseUl.innerHTML = "";
-      if (allItem) baseUl.appendChild(allItem);
-
-      // Inject HTML động
-      const tmp = document.createElement("div");
-      tmp.innerHTML = buildMenuHTML(roots);
-      while (tmp.firstChild) baseUl.appendChild(tmp.firstChild);
-
-      console.log("[news-menu] rendered", roots.length, "root categories");
+      mount.innerHTML = buildColumnsHTML(roots);
+      console.log('[news-menu] rendered', roots.length, 'root categories');
     } catch (err) {
-      console.error("[news-menu] Lỗi:", err.message);
-      // Giữ menu mặc định nếu lỗi
+      console.error('[news-menu] Lỗi:', err?.message || err);
+      if (!mount.children.length) {
+        mount.innerHTML = '<div class="menu-empty">Không thể tải menu BÀI VIẾT.</div>';
+      }
     }
   }
 
   // Đợi DOM + header partial ready
   function init() {
-    // partials.js bắn event 'partials:loaded' khi header đã vào DOM
-    if (document.getElementById("news-menu-mount")) {
+    if (document.getElementById('newsMenuMount')) {
       render();
     } else {
-      document.addEventListener("partials:loaded", render, { once: true });
-      // fallback: timeout 2s nếu event không bắn
+      document.addEventListener('partials:loaded', render, { once: true });
       setTimeout(() => {
-        if (document.getElementById("news-menu-mount")) render();
-      }, 2000);
+        if (document.getElementById('newsMenuMount')) render();
+      }, 2500);
     }
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
   }

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tin tức & Đọc báo | Techtra</title>
+  <meta name="description" content="Tổng hợp tin tức công nghệ, khoa học, đời sống được Techtra tuyển chọn từ các báo uy tín.">
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <!-- Site styles -->
+  <link rel="stylesheet" href="../../components/tin-tuc/tin-tuc.css">
+  <!-- <link rel="stylesheet" href="../../components/Header/header.css">
+  <link rel="stylesheet" href="../../components/Footer/footer.css"> -->
+</head>
+<body>
+
+  <!-- Header (load qua partials.js) -->
+  <div id="header-placeholder"></div>
+  <main class="tn-page">
+
+    <!-- ─── Hero / Tiêu đề trang ─── -->
+    <section class="tn-hero">
+      <div class="tn-hero-inner">
+        <p class="tn-eyebrow"><i class="fas fa-newspaper"></i> Đọc báo cùng Techtra</p>
+        <h1 class="tn-title">Tin tức &amp; Bài viết</h1>
+        <p class="tn-sub">Tổng hợp tin nóng từ VnExpress, Tuổi Trẻ, Dân trí, Thanh Niên… cập nhật mỗi ngày.</p>
+      </div>
+    </section>
+
+    <!-- ─── Thanh filter + search ─── -->
+    <section class="tn-toolbar">
+      <div class="tn-search">
+        <i class="fas fa-search"></i>
+        <input type="text" id="tnSearchInput" placeholder="Tìm bài theo tiêu đề hoặc tóm tắt...">
+      </div>
+      <div class="tn-sites" id="tnCategoryFilter">
+        <button class="tn-chip active" data-cat="">Tất cả nhóm</button>
+        <!-- category chips sẽ được render động -->
+      </div>
+      <div class="tn-sites" id="tnSiteFilter">
+        <button class="tn-chip active" data-site="all">Mọi nguồn</button>
+        <!-- site chips sẽ được render động -->
+      </div>
+    </section>
+
+    <!-- ─── Loading / error / empty ─── -->
+    <div class="tn-state tn-loading" id="tnLoading">
+      <i class="fas fa-spinner fa-spin"></i> Đang tải bài viết...
+    </div>
+    <div class="tn-state tn-error" id="tnError" style="display:none;"></div>
+    <div class="tn-state tn-empty" id="tnEmpty" style="display:none;">
+      <i class="far fa-newspaper"></i>
+      <h3>Chưa có bài viết nào</h3>
+      <p>Hãy quay lại sau, hoặc admin thêm bài từ trang quản trị.</p>
+    </div>
+
+    <!-- ─── Lưới bài viết ─── -->
+    <section class="tn-grid" id="tnGrid"></section>
+
+    <!-- ─── Phân trang đơn giản ─── -->
+    <nav class="tn-pager" id="tnPager" style="display:none;">
+      <button id="tnPrevBtn"><i class="fas fa-chevron-left"></i> Trước</button>
+      <span id="tnPageInfo">Trang 1</span>
+      <button id="tnNextBtn">Sau <i class="fas fa-chevron-right"></i></button>
+    </nav>
+
+  </main>
+
+  <!-- Footer (load qua partials.js) -->
+  <div id="footer-placeholder"></div>
+
+  <!-- Supabase + page logic -->
+  <script src="../../components/header/partials.js"></script>
+  <script type="module" src="../../components/tin-tuc/tin-tuc.js"></script>
+</body>
+</html>

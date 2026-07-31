@@ -32,30 +32,58 @@
     }
 
     /* ---- Mobile Menu Drawer ---- */
-    const mobileOpenBtn  = document.getElementById('mobileMenuOpenBtn');
-    const mobileCloseBtn = document.getElementById('mobileMenuCloseBtn');
-    const mobileOverlay  = document.getElementById('mobileMenuOverlay');
-    const mobileDrawer   = document.getElementById('mobileMenuDrawer');
-
+    // Lookup mỗi lần (không cache) để chịu được re-mount header do partials.
     function openMobileMenu() {
-        mobileDrawer.classList.add('is-open');
-        mobileOverlay.classList.add('is-open');
-        mobileOpenBtn.classList.add('d-none');
-        mobileCloseBtn.classList.remove('d-none');
+        const drawer = document.getElementById('mobileMenuDrawer');
+        const overlay = document.getElementById('mobileMenuOverlay');
+        const open = document.getElementById('mobileMenuOpenBtn');
+        const close = document.getElementById('mobileMenuCloseBtn');
+        if (drawer) drawer.classList.add('is-open');
+        if (overlay) overlay.classList.add('is-open');
+        if (open) open.classList.add('d-none');
+        if (close) close.classList.remove('d-none');
         document.body.style.overflow = 'hidden';
+        console.log('[mobile-menu] OPEN');
     }
 
     function closeMobileMenu() {
-        mobileDrawer.classList.remove('is-open');
-        mobileOverlay.classList.remove('is-open');
-        mobileOpenBtn.classList.remove('d-none');
-        mobileCloseBtn.classList.add('d-none');
+        const drawer = document.getElementById('mobileMenuDrawer');
+        const overlay = document.getElementById('mobileMenuOverlay');
+        const open = document.getElementById('mobileMenuOpenBtn');
+        const close = document.getElementById('mobileMenuCloseBtn');
+        if (drawer) drawer.classList.remove('is-open');
+        if (overlay) overlay.classList.remove('is-open');
+        if (open) open.classList.remove('d-none');
+        if (close) close.classList.add('d-none');
         document.body.style.overflow = '';
+        console.log('[mobile-menu] CLOSE');
     }
 
-    if (mobileOpenBtn)  mobileOpenBtn.addEventListener('click', openMobileMenu);
-    if (mobileCloseBtn) mobileCloseBtn.addEventListener('click', closeMobileMenu);
-    if (mobileOverlay)  mobileOverlay.addEventListener('click', closeMobileMenu);
+    function bindMobileMenuHandlers() {
+        const open  = document.getElementById('mobileMenuOpenBtn');
+        const close = document.getElementById('mobileMenuCloseBtn');
+        const over  = document.getElementById('mobileMenuOverlay');
+        if (open  && !open.dataset.bound)  { open.dataset.bound  = '1'; open.addEventListener('click', openMobileMenu); }
+        if (close && !close.dataset.bound) { close.dataset.bound = '1'; close.addEventListener('click', closeMobileMenu); }
+        if (over  && !over.dataset.bound)  { over.dataset.bound  = '1'; over.addEventListener('click', closeMobileMenu); }
+    }
+
+    // Bind lần đầu (sau khi app.js chạy — lúc này header đã được inject bởi partials.js).
+    bindMobileMenuHandlers();
+
+    // Fallback CHẮC CHẮN: dùng event delegation ở document, bắt cả khi
+    // element chưa tồn tại hoặc bị re-mount bởi partial nào đó.
+    // Chỉ bắt đúng 1 lần nhờ cờ __mobileMenuDelegated ở window.
+    if (!window.__mobileMenuDelegated) {
+        window.__mobileMenuDelegated = true;
+        document.addEventListener('click', (e) => {
+            const target = e.target;
+            if (!(target instanceof Element)) return;
+            if (target.closest('#mobileMenuOpenBtn'))  { openMobileMenu();  return; }
+            if (target.closest('#mobileMenuCloseBtn')) { closeMobileMenu(); return; }
+            if (target.closest('#mobileMenuOverlay'))  { closeMobileMenu(); return; }
+        });
+    }
 
     /* ---- Mobile Search Toggle ---- */
     const mobileSearchBtn    = document.getElementById('mobileSearchBtn');
@@ -101,175 +129,86 @@
         }
     });
 
-    /* ---- Fetch product groups and populate mobile menu ---- */
-    async function populateProductGroups() {
-        try {
-            // Import the API functions
-            const { productGroupsApi, productsApi } = await import('/components/api-service/api.js');
+    /* ---- Mobile menu / product groups / SALE & SẢN PHẨM đã được partials.js render ----
+       partials.js sẽ bắn event 'partials:loaded' sau khi header partial được inject
+       và đã render toàn bộ menu (SALE / SẢN PHẨM / VỀ TECHTRA / BÀI VIẾT) từ API.
+       Khi đó chỉ cần gắn handler cho accordion mobile (level 1) và sub-accordion (level 2). */
 
-            // Fetch all product groups
-            const groupsResponse = await productGroupsApi.getAll();
-            const productGroups = groupsResponse.data || [];
-
-            // Get the container element
-            const container = document.getElementById('productGroupsContainer');
-            if (!container) return;
-
-            // Clear any existing content
-            container.innerHTML = '';
-
-            // Process each product group
-            for (const group of productGroups) {
-                // Fetch products for this group
-                const productsResponse = await productsApi.getAll({ group_id: group.id });
-                const products = productsResponse.data || [];
-
-                // Create the group HTML
-                const groupHTML = `
-                    <li class="has-sub-accordion">
-                        <div class="submenu-header">
-                            <a href="/components/nhom-san-pham/nhom-san-pham.html?slug=${group.slug}">${group.name}</a>
-                            <span class="sub-accordion-toggle"><i class="fa-solid fa-plus"></i></span>
-                        </div>
-                        <ul class="nav-mobile__sub-submenu">
-                            ${products.map(product => `
-                                <li><a href="/components/san-pham/san-pham.html?slug=${product.slug}">${product.name}</a></li>
-                            `).join('')}
-                        </ul>
-                    </li>
-                `;
-
-                // Add the group HTML to the container
-                container.insertAdjacentHTML('beforeend', groupHTML);
-            }
-        } catch (error) {
-            console.error('Error populating product groups:', error);
-            // Fallback to a simple message if API fails
-            const container = document.getElementById('productGroupsContainer');
-            if (container) {
-                container.innerHTML = '<li><a href="#">Không thể tải danh mục sản phẩm</a></li>';
-            }
-        }
-    }
-
-    // Call the function to populate product groups when the DOM is loaded
-    document.addEventListener('DOMContentLoaded', populateProductGroups);
-
-    /* ===========================================================
-     * Render động menu SALE / SẢN PHẨM trên header desktop
-     *  - SALE:    product_groups.is_sale = true   → card ảnh + tên
-     *  - SẢN PHẨM: product_groups.is_sale = false → cột + list SP con
-     * =========================================================== */
-    const ARROW_ICON_SVG = `
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path fill-rule="evenodd" clip-rule="evenodd" d="M7.99922 1.19922C4.24962 1.19922 1.19922 4.24962 1.19922 7.99922C1.19922 11.7488 4.24962 14.7992 7.99922 14.7992C11.7488 14.7992 14.7992 11.7488 14.7992 7.99922C14.7992 4.24962 11.7488 1.19922 7.99922 1.19922ZM8 16C3.5888 16 0 12.4112 0 8C0 3.5888 3.5888 0 8 0C12.4112 0 16 3.5888 16 8C16 12.4112 12.4112 16 8 16Z" fill="#363C05"/>
-            <path fill-rule="evenodd" clip-rule="evenodd" d="M6.84559 11.3745C6.69199 11.3745 6.53759 11.3161 6.42079 11.1977C6.18719 10.9625 6.18799 10.5833 6.42239 10.3497L8.78399 7.99769L6.42239 5.64649C6.18799 5.41289 6.18719 5.03289 6.42079 4.79769C6.65439 4.56169 7.03359 4.56329 7.26879 4.79609L10.0576 7.57289C10.1704 7.68569 10.2336 7.83849 10.2336 7.99769C10.2336 8.15769 10.1704 8.31049 10.0576 8.42329L7.26879 11.1993C7.15199 11.3161 6.99839 11.3745 6.84559 11.3745Z" fill="#363C05"/>
-        </svg>`;
-
-    function escHtml(s) {
-        return String(s == null ? '' : s)
-            .replaceAll('&', '&amp;')
-            .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('"', '&quot;')
-            .replaceAll("'", '&#39;');
-    }
-
-    async function renderProductMenus() {
-        try {
-            const { productGroupsApi, productsApi } = await import('/components/api-service/api.js');
-
-            const [groupsRes, productsRes] = await Promise.all([
-                productGroupsApi.getAll(),
-                productsApi.getAll({ limit: 1000 }).catch(() => ({ data: [] })),
-            ]);
-            const allGroups = (groupsRes && groupsRes.data) || [];
-            const allProducts = (productsRes && productsRes.data) || [];
-
-            // Chỉ lấy group active; phân loại theo is_sale
-            const activeGroups = allGroups.filter((g) => g.is_active !== false);
-            const saleGroups = activeGroups
-                .filter((g) => g.is_sale === true)
-                .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-            const productGroups = activeGroups
-                .filter((g) => g.is_sale !== true)
-                .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-
-            // Group products theo group_id
-            const productsByGroup = {};
-            (allProducts || []).forEach((p) => {
-                if (p.group_id == null) return;
-                if (!productsByGroup[p.group_id]) productsByGroup[p.group_id] = [];
-                productsByGroup[p.group_id].push(p);
+    function attachMobileAccordionHandlers() {
+        document.querySelectorAll('.nav-mobile__item.has-accordion').forEach(item => {
+            if (item.dataset.bound === '1') return;
+            item.dataset.bound = '1';
+            const header = item.querySelector('.nav-mobile__link-header');
+            if (!header) return;
+            header.addEventListener('click', () => {
+                const isOpen = item.classList.contains('is-open');
+                item.closest('.nav-mobile__list')
+                    .querySelectorAll('.nav-mobile__item.is-open')
+                    .forEach(sib => { if (sib !== item) sib.classList.remove('is-open'); });
+                if (!isOpen) item.classList.add('is-open');
             });
+        });
 
-            // ─── 1. Render menu SALE ────────────────────────────────────
-            const saleMount = document.getElementById('saleMenuMount');
-            if (saleMount) {
-                if (!saleGroups.length) {
-                    saleMount.innerHTML = '<div class="menu-empty">Chưa có nhóm SALE nào.</div>';
-                } else {
-                    saleMount.innerHTML = saleGroups
-                        .map((g) => `
-                            <div class="menu-type-1__content--item">
-                                <a href="/components/nhom-san-pham/nhom-san-pham.html?slug=${escHtml(g.slug)}" class="menu-type-1__content--item__img">
-                                    <img src="${escHtml(g.image_url || 'https://placehold.co/140x110?text=SALE')}" alt="${escHtml(g.name)}">
-                                </a>
-                                <a href="/components/nhom-san-pham/nhom-san-pham.html?slug=${escHtml(g.slug)}" class="menu-type-1__content--item__title">${escHtml(g.name)}</a>
-                            </div>`)
-                        .join('');
-                }
-            }
-
-            // ─── 2. Render menu SẢN PHẨM ───────────────────────────────
-            const prodMount = document.getElementById('productMenuMount');
-            if (prodMount) {
-                if (!productGroups.length) {
-                    prodMount.innerHTML = '<div class="menu-empty">Chưa có nhóm sản phẩm nào.</div>';
-                } else {
-                    prodMount.innerHTML = productGroups
-                        .map((g) => {
-                            const items = (productsByGroup[g.id] || []).slice(0, 10);
-                            return `
-                                <div class="menu-type-2__list-menu--item">
-                                    <a href="/components/nhom-san-pham/nhom-san-pham.html?slug=${escHtml(g.slug)}" class="menu-type-2__list-menu--item__title menu-type-new__title">
-                                        <span>${escHtml(g.name)}</span>
-                                        ${ARROW_ICON_SVG}
-                                    </a>
-                                    <ul>
-                                        ${
-                                            items.length
-                                                ? items
-                                                      .map(
-                                                          (p) => `<li><a href="/components/san-pham/san-pham.html?slug=${escHtml(p.slug)}">${escHtml(p.name)}</a></li>`
-                                                      )
-                                                      .join('')
-                                                : '<li><a href="#"><em>Đang cập nhật</em></a></li>'
-                                        }
-                                    </ul>
-                                </div>`;
-                        })
-                        .join('');
-                }
-            }
-        } catch (err) {
-            console.error('[header] Lỗi render menu SALE / SẢN PHẨM:', err);
-            const saleMount = document.getElementById('saleMenuMount');
-            const prodMount = document.getElementById('productMenuMount');
-            if (saleMount) saleMount.innerHTML = '<div class="menu-empty">Không thể tải menu SALE.</div>';
-            if (prodMount) prodMount.innerHTML = '<div class="menu-empty">Không thể tải menu SẢN PHẨM.</div>';
-        }
+        document.querySelectorAll('.has-sub-accordion').forEach(item => {
+            if (item.dataset.bound === '1') return;
+            item.dataset.bound = '1';
+            const subHeader = item.querySelector('.submenu-header');
+            if (!subHeader) return;
+            subHeader.addEventListener('click', (e) => {
+                e.stopPropagation();
+                item.classList.toggle('is-sub-open');
+            });
+        });
     }
 
-    document.addEventListener('DOMContentLoaded', renderProductMenus);
+    // Sau khi partials load xong, gắn handler cho accordion mobile + re-bind menu hamburger
+    document.addEventListener('partials:loaded', () => {
+        attachMobileAccordionHandlers();
+        bindMobileMenuHandlers(); // phòng trường hợp header bị thay thế
+    });
+    // Fallback: thử gắn ngay nếu header đã có sẵn
+    if (document.getElementById('mobileNavList')) attachMobileAccordionHandlers();
 
-    /* ---- Cart count update utility (stub) ---- */
+    /* ---- Cart count sync ----
+       Mọi trang đều gọi window.updateCartCount() sau khi thêm/xoá SP để đồng bộ badge.
+       Hàm này đọc localStorage.techtra_cart → tính tổng quantity → cập nhật badge
+       ở cả desktop (.header-cart__count) + mobile (#mobileMiniCart .header-cart__count).
+       Single source of truth: app.js (chạy ở mọi trang qua partials.js). */
+    function readCartTotalQty() {
+        try {
+            const raw = localStorage.getItem("techtra_cart");
+            if (!raw) return 0;
+            const arr = JSON.parse(raw);
+            if (!Array.isArray(arr)) return 0;
+            return arr.reduce((s, it) => s + Number(it?.quantity || 0), 0);
+        } catch {
+            return 0;
+        }
+    }
     window.updateCartCount = function (count) {
-        document.querySelectorAll('.header-cart__count').forEach(el => {
-            el.textContent = count;
-            el.style.display = count > 0 ? 'flex' : 'none';
+        // Nếu không truyền count → tự đọc lại từ localStorage (an toàn cho mọi ngữ cảnh).
+        const qty = (typeof count === "number" && !Number.isNaN(count))
+            ? Math.max(0, Math.floor(count))
+            : readCartTotalQty();
+        const displayQty = qty > 99 ? "99+" : String(qty);
+
+        document.querySelectorAll(".header-cart__count, #cart-badge-count").forEach((el) => {
+            el.textContent = displayQty;
+            el.style.display = qty > 0 ? "flex" : "none";
         });
     };
+    // Sync ngay khi DOM sẵn sàng (badge có thể có sẵn từ header partial)
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", () => window.updateCartCount());
+    } else {
+        window.updateCartCount();
+    }
+    // Và đồng bộ lại sau khi partials inject xong (tránh trường hợp app.js chạy trước partials)
+    document.addEventListener("partials:loaded", () => window.updateCartCount());
+    // Đồng bộ khi user quay lại tab (giỏ hàng có thể đã đổi từ tab khác)
+    window.addEventListener("storage", (e) => {
+        if (e.key === "techtra_cart") window.updateCartCount();
+    });
 
     /* ---- Login Modal Functionality ---- */
     const loginModal = document.getElementById('loginModal');
@@ -286,7 +225,14 @@
     const showLoginLink = document.getElementById('showLoginLink');
     
     // Store the referrer URL for redirect after login
-    let referrerUrl = document.referrer || window.location.origin;
+    let referrerUrl = document.referrer || window.location.href;
+
+    // Lưu referrer vào sessionStorage để trang đăng nhập dùng khi submit form
+    try {
+        if (referrerUrl && /^https?:\/\//i.test(referrerUrl)) {
+            sessionStorage.setItem('techtra_login_referrer', referrerUrl);
+        }
+    } catch (_) {}
     
     // Open modals
     function openLoginModal() {
@@ -420,7 +366,7 @@
         // Forgot password form submission
         const forgotPasswordForm = document.getElementById('forgotPasswordForm');
         if (forgotPasswordForm) {
-            forgotPasswordForm.addEventlement('submit', function(e) {
+            forgotPasswordForm.addEventListener('submit', function(e) {
                 e.preventDefault();
                 
                 const email = document.getElementById('forgotEmail').value.trim();
@@ -464,82 +410,185 @@
         }
     });
     
-    // Simulate login API call (replace with actual backend call)
+    // === Login modal: gọi backend Express /api/auth/login ===
+    async function callLoginApi(usernameOrEmail, password) {
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ usernameOrEmail, password }),
+        });
+        let json = null;
+        try { json = await res.json(); } catch (_) {}
+        if (!res.ok || !json?.success) {
+            throw new Error(json?.error || `Đăng nhập thất bại (HTTP ${res.status})`);
+        }
+        return json.data;
+    }
+
+    function normalizeRole(r) {
+        return String(r || 'user').trim().toLowerCase();
+    }
+    function isAdminRole(r) {
+        r = normalizeRole(r);
+        return r === 'admin' || r === 'superadmin';
+    }
+
     function simulateLogin(email, password, rememberMe) {
-        // Show loading state
         const loginBtn = document.querySelector('.login-btn');
         const originalText = loginBtn.textContent;
         loginBtn.textContent = 'Đang đăng nhập...';
         loginBtn.disabled = true;
-        
-        // Simulate network delay
-        setTimeout(() => {
-            // Simulate successful login
-            // In real implementation, this would be an actual API call to /api/auth/login
-            const isAdmin = email === 'admin@techtra.vn'; // Check if admin
-            
-            // Reset button state
-            loginBtn.textContent = originalText;
-            loginBtn.disabled = false;
-            
-            // Close login modal
-            closeLoginModal();
-            
-            // Redirect based on user type
-            if (isAdmin) {
-                // Admin goes to admin panel
-                window.location.href = '/techtra-admin/';
-            } else {
-                // Regular user goes back to previous page
-                window.location.href = referrerUrl;
-            }
-            
-            // Show success message (in real app, you might use toast notifications)
-            alert('Đăng nhập thành công!');
-        }, 1500);
+
+        callLoginApi(email, password)
+            .then((data) => {
+                const role = normalizeRole(data.role);
+                try {
+                    localStorage.setItem('techtra_user', JSON.stringify({
+                        id: data.id,
+                        name: data.name || data.full_name || data.username || data.email,
+                        email: data.email,
+                        phone: data.phone || '',
+                        role,
+                        admin_priority: data.admin_priority ?? 0,
+                        source: isAdminRole(role) ? 'admins' : 'users',
+                        loggedInAt: Date.now(),
+                    }));
+                } catch (_) {}
+                if (rememberMe) {
+                    try { localStorage.setItem('techtra_username', email); } catch (_) {}
+                }
+
+                closeLoginModal();
+                if (isAdminRole(role)) {
+                    window.location.href = '/admin/';
+                } else {
+                    window.location.href = referrerUrl;
+                }
+            })
+            .catch((err) => {
+                loginBtn.textContent = originalText;
+                loginBtn.disabled = false;
+                alert('Đăng nhập thất bại: ' + (err.message || 'Lỗi không xác định'));
+            });
     }
     
-    // Simulate forgot password API call
     function simulateForgotPassword(email) {
-        const btn = document.querySelector('.reset-password-btn');
-        const originalText = btn.textContent;
-        btn.textContent = 'Đang gửi...';
-        btn.disabled = true;
-        
-        setTimeout(() => {
-            btn.textContent = originalText;
-            btn.disabled = false;
-            
-            // Show success message
-            const messageDiv = document.getElementById('forgotPasswordMessage');
-            messageDiv.textContent = 'Đã gửi liên kết đặt lại mật khẩu đến email của bạn';
-            messageDiv.style.color = '#28a745';
-            messageDiv.style.display = 'block';
-            
-            // Clear form
-            document.getElementById('forgotEmail').value = '';
-        }, 1500);
+        // OTP flow đã có sẵn UI riêng ở /components/quen-mk/quen-mk.html.
+        // Modal trong header chỉ bắn email qua query → trang đó render form OTP đầy đủ.
+        window.location.href = '/components/quen-mk/index.html?email=' + encodeURIComponent(email);
     }
-    
-    // Simulate register API call
+
+    // Register modal: flow OTP email (TechnoraOtp) — gửi mã → verify → đăng ký
+    async function registerApi(payload) {
+        const res = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        let json = null;
+        try { json = await res.json(); } catch (_) {}
+        if (!res.ok || !json?.success) {
+            throw new Error(json?.error || `Đăng ký thất bại (HTTP ${res.status})`);
+        }
+        return json;
+    }
+
+    // Hiển thị ô nhập OTP 6 số inline trong modal register (đè UI cũ, không dùng prompt())
+    function showRegisterOtpInline(email, onVerified) {
+        const form = document.getElementById('registerForm');
+        if (!form) return;
+
+        // Xoá UI OTP cũ nếu có
+        const old = document.getElementById('registerOtpInlineWrap');
+        if (old) old.remove();
+
+        const wrap = document.createElement('div');
+        wrap.id = 'registerOtpInlineWrap';
+        wrap.style.marginTop = '14px';
+        wrap.innerHTML = `
+          <div style="font-weight:800;margin-bottom:8px;">Nhập mã OTP đã gửi tới ${email}</div>
+          <input id="registerOtpCode" type="text" inputmode="numeric" maxlength="6"
+                 placeholder="Nhập mã 6 số"
+                 style="width:100%;padding:10px;border-radius:10px;border:1px solid #e5e7eb;letter-spacing:4px;font-size:18px;text-align:center;" />
+          <div id="registerOtpMsg" style="margin-top:8px;font-size:13px;"></div>
+          <button type="button" id="registerOtpConfirmBtn"
+                  style="margin-top:10px;padding:10px 14px;border:none;border-radius:12px;background:#111827;color:#fff;cursor:pointer;">
+            Xác nhận mã
+          </button>
+        `;
+        form.appendChild(wrap);
+
+        const codeInput = wrap.querySelector('#registerOtpCode');
+        const msg       = wrap.querySelector('#registerOtpMsg');
+        const btn       = wrap.querySelector('#registerOtpConfirmBtn');
+
+        codeInput.focus();
+
+        // Auto-submit khi nhập đủ 6 số
+        codeInput.addEventListener('input', () => {
+            if (codeInput.value.length === 6) btn.click();
+        });
+
+        btn.addEventListener('click', async () => {
+            const code = (codeInput.value || '').trim();
+            if (!/^\d{6}$/.test(code)) {
+                msg.style.color = '#dc2626';
+                msg.textContent = 'Vui lòng nhập đúng 6 chữ số.';
+                codeInput.focus();
+                return;
+            }
+            btn.disabled = true;
+            btn.textContent = 'Đang xác nhận...';
+            try {
+                await window.TechnoraOtp.verify(email, 'email', 'register', code);
+                msg.style.color = '#16a34a';
+                msg.textContent = '✅ Mã hợp lệ. Đang hoàn tất đăng ký...';
+                await onVerified();
+            } catch (err) {
+                msg.style.color = '#dc2626';
+                msg.textContent = err.message || 'Mã OTP không đúng hoặc đã hết hạn.';
+                btn.disabled = false;
+                btn.textContent = 'Xác nhận mã';
+                codeInput.focus();
+            }
+        });
+    }
+
     function simulateRegister(fullName, email, password) {
         const btn = document.querySelector('.register-btn');
         const originalText = btn.textContent;
-        btn.textContent = 'Đang đăng ký...';
+        btn.textContent = 'Đang gửi mã...';
         btn.disabled = true;
-        
-        setTimeout(() => {
+
+        if (typeof window.TechnoraOtp?.send !== 'function') {
             btn.textContent = originalText;
             btn.disabled = false;
-            
-            // Show success message
-            alert('Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản.');
-            
-            // Switch to login tab
-            closeRegisterModal();
-            openLoginModal();
-        }, 1500);
+            alert('Lỗi hệ thống: sendCode.js chưa load. Hãy F5 trang.');
+            return;
+        }
+
+        window.TechnoraOtp.send(email, 'email', 'register')
+            .then(() => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+                showRegisterOtpInline(email, async () => {
+                    await registerApi({
+                        username: email.split('@')[0],
+                        email,
+                        password,
+                        full_name: fullName,
+                    });
+                    alert('Đăng ký thành công! Vui lòng đăng nhập.');
+                    closeRegisterModal();
+                    openLoginModal();
+                });
+            })
+            .catch((err) => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+                alert('Đăng ký thất bại: ' + (err.message || 'Không gửi được mã OTP. Vui lòng thử lại sau.'));
+            });
     }
 
-    console.log('%cCỏ Mềm Header initialized ✓', 'color: #3E6807; font-weight: bold;');
+    console.log('%cTECHTRA Header initialized ✓', 'color: #2563eb; font-weight: bold;');
 })();

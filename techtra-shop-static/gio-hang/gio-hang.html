@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Giỏ hàng - Techtra</title>
+    <link rel="stylesheet" href="/components/gio-hang/gio-hang.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="header-placeholder"></div>
+
+    <main class="cart-page container">
+      <div class="cart-header">
+        <h1>Giỏ hàng</h1>
+        <p class="cart-subtitle">Kiểm tra sản phẩm trước khi thanh toán.</p>
+      </div>
+
+      <div class="cart-layout">
+        <section class="cart-items">
+          <div class="cart-table">
+            <div class="cart-row cart-row--head">
+              <div class="col-product">Sản phẩm</div>
+              <div class="col-price">Giá</div>
+              <div class="col-qty">Số lượng</div>
+              <div class="col-total">Thành tiền</div>
+              <div class="col-action"> </div>
+            </div>
+            <div id="cartItemsMount" class="cart-rows"></div>
+          </div>
+
+          <div class="cart-empty" id="cartEmptyState" style="display:none">
+            <div class="empty-icon"><i class="fa-regular fa-bag-shopping"></i></div>
+            <h3>Giỏ hàng đang trống</h3>
+            <p>Thêm sản phẩm để bắt đầu mua hàng.</p>
+            <a class="btn btn-primary" href="/components/trang-chu/index.html">Tiếp tục mua sắm</a>
+          </div>
+        </section>
+
+        <aside class="cart-summary">
+          <div class="summary-card">
+            <h2 class="summary-title">Tóm tắt đơn hàng</h2>
+
+            <div class="summary-line">
+              <span>Tạm tính</span>
+              <strong id="cartSubtotal">0 đ</strong>
+            </div>
+            <div class="summary-line">
+              <span>Vận chuyển</span>
+              <strong id="cartShipping">0 đ</strong>
+            </div>
+            <div class="summary-line summary-line--discount">
+              <span>Giảm giá</span>
+              <strong id="cartDiscount">0 đ</strong>
+            </div>
+            <div class="summary-total">
+              <span>Tổng cộng</span>
+              <strong id="cartFinal">0 đ</strong>
+            </div>
+
+            <div class="voucher-block">
+              <label for="voucherCode">Voucher</label>
+              <div class="voucher-input">
+                <input id="voucherCode" type="text" placeholder="Nhập mã voucher (tuỳ chọn)" />
+                <button id="applyVoucherBtn" class="btn btn-secondary" type="button">Áp dụng</button>
+              </div>
+              <div id="voucherMessage" class="voucher-message" aria-live="polite"></div>
+            </div>
+
+            <div class="summary-actions">
+              <button id="checkoutBtn" class="btn btn-primary" type="button">Thanh toán</button>
+              <button id="clearCartBtn" class="btn btn-ghost" type="button">Xoá giỏ</button>
+            </div>
+
+            <div class="summary-note">
+              <i class="fa-solid fa-truck-fast"></i>
+              <span>Miễn phí vận chuyển cho đơn từ 500.000đ (demo).</span>
+            </div>
+          </div>
+
+          <div class="history-card" style="display:none" id="ordersPreviewMount">
+            <h3>Lịch sử mua hàng</h3>
+            <div id="ordersPreviewList" class="history-list"></div>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="/components/header/partials.js?v=3"></script>
+    <script type="module" src="/components/gio-hang/gio-hang.js?v=1"></script>
+  </body>
+</html>

@@ -10,7 +10,7 @@
 // =====================================================================
 
 import React, { useState, useMemo, useCallback } from "react";
-import { supabase } from "../../api";
+import { ordersApi } from "../../api";
 import { STATUS_META, PAYMENT_META, fmtVND, fmtDate, changeOrderStatus, OrderDetailModal } from "./DonHangUtils";
 import { createJTOrder, traceJTOrder, printJTLabel, formatJTStatus } from "./jtHelpers";
 
@@ -76,11 +76,9 @@ export default function OrderTable({
     setBulkBusy(true);
     try {
       const ids = Array.from(selectedIds);
-      const { error: e2 } = await supabase
-        .from("orders")
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .in("id", ids);
-      if (e2) throw new Error(e2.message);
+      for (const id of ids) {
+        await ordersApi.update(id, { status: newStatus });
+      }
       onChangeStatus?.(null, newStatus, ids);
       clearSelection();
     } catch (err) {
@@ -431,7 +429,7 @@ export default function OrderTable({
                           <i className="fas fa-eye"></i>
                         </button>
 
-                        {o.status === "pending" && (
+                        {(o.status === "pending" || o.status === "cancelled") && (
                           <>
                             <button
                               className="dh-icon-btn confirm"
@@ -448,6 +446,14 @@ export default function OrderTable({
                               title="Huỷ đơn"
                             >
                               <i className="fas fa-ban"></i>
+                            </button>
+                            <button
+                              className="dh-icon-btn"
+                              onClick={() => handleStatus(o, "deleted_before_ship")}
+                              disabled={updatingId === o.id}
+                              title="Xóa trước khi giao (đổi status)"
+                            >
+                              <i className="fas fa-truck-arrow-right"></i>
                             </button>
                           </>
                         )}

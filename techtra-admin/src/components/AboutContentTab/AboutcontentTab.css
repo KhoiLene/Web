@@ -204,6 +204,23 @@
 
 .up-content-editor-col { width: 100%; min-width: 0; }
 
+/* ─── 2 cột: editor trái | panel preview public phải ─── */
+.up-editor-cols {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (min-width: 1100px) {
+  .up-editor-cols {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.up-content-published-col {
+  width: 100%;
+  min-width: 0;
+}
+
 .up-post-list {
   width: 100%;
   border: 1px solid #e5e7eb;

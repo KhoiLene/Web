@@ -3,7 +3,7 @@
 // Load bài viết đã xuất bản từ Supabase, có search + filter site + filter nhóm + phân trang
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { supabase } from "../../components/api-service/api.js";
+import { postsApi, newsCategoriesApi, request } from "../../components/api-service/api.js";
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const state = {
@@ -220,15 +220,12 @@ function render() {
 async function loadPosts() {
   showState("loading");
   try {
-    const { data, error } = await supabase
-      .from("posts")
-      .select("id, slug, title, summary, site_name, source_url, thumbnail, thumbnail_source, post_type, file_name, file_size, file_url, published_at, created_at, category_id")
-      .eq("status", "published")
-      .order("published_at", { ascending: false });
+    const r = await request(
+      "GET",
+      `/db/posts?status=eq.published&select=id,slug,title,summary,site_name,source_url,thumbnail,thumbnail_source,post_type,file_name,file_size,file_url,published_at,created_at,category_id&order=published_at.desc`
+    );
 
-    if (error) throw new Error(error.message);
-
-    state.all = data || [];
+    state.all = r.data || [];
 
     // build site chips
     const sites = Array.from(
@@ -238,11 +235,8 @@ async function loadPosts() {
 
     // Load cây nhóm tin tức (best-effort, không chặn nếu lỗi)
     try {
-      const { data: cats } = await supabase
-        .from("news_categories")
-        .select("id, name, slug, parent_id, is_active, sort_order")
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true });
+      const catsRes = await newsCategoriesApi.getAll();
+      const cats = catsRes.data || [];
       if (cats && cats.length) {
         const roots = cats
           .filter((r) => !r.parent_id)
