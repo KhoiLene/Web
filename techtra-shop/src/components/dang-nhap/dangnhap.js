@@ -487,6 +487,9 @@
                     customer_id:    account.customer_id,   // FK in orders table
                     loggedInAt:     Date.now(),
                 }));
+                if (account.customer_id) {
+                    localStorage.setItem('techtra_customer_id', String(account.customer_id));
+                }
             } catch (_) {}
 
             // Xác định điểm đến dựa trên role đã chuẩn hoá

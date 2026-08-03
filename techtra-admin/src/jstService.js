@@ -1166,7 +1166,19 @@ async function jtFetch(path, payload, msgType) {
   form.append("eccompanyid", JT_CONFIG.eccompanyid);
 
   const url = `${JT_CONFIG.BASE_URL}${path}`;
-  const res = await fetch(url, { method: "POST", body: form });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  let res;
+  try {
+    res = await fetch(url, { method: "POST", body: form, signal: controller.signal });
+  } catch (fetchErr) {
+    clearTimeout(timeoutId);
+    if (fetchErr.name === 'AbortError') {
+      throw new Error('Kết nối đến J&T hết thời gian chờ (10s). Vui lòng kiểm tra cấu hình môi trường test hoặc mạng.');
+    }
+    throw new Error('Lỗi kết nối J&T: ' + fetchErr.message);
+  }
+  clearTimeout(timeoutId);
 
   // Check lỗi HTTP/network TRƯỚC khi đọc nội dung response,
   // tránh trường hợp res.ok=false nhưng vẫn cố đọc responseitems.

@@ -157,8 +157,38 @@ function SectionLabel({ label }) {
   return <p className="section-label">{label}</p>;
 }
 
+// ─── Admin user card (footer của Sidebar) ────────────────────────────────────
+function AdminUserCard({ admin, onLogout }) {
+  if (!admin) return null;
+  // Ưu tiên full_name > name > username > email prefix
+  const displayName =
+    admin.full_name || admin.name || admin.username ||
+    (admin.email ? String(admin.email).split("@")[0] : "Admin");
+  const roleLabel = (admin.role || "admin").toLowerCase() === "superadmin" ? "Super Admin" : "Admin";
+  const initial = String(displayName).trim().charAt(0).toUpperCase() || "A";
+
+  return (
+    <div className="admin-user-card">
+      <div className="admin-user-avatar" aria-hidden="true">{initial}</div>
+      <div className="admin-user-info">
+        <div className="admin-user-name" title={displayName}>{displayName}</div>
+        <div className="admin-user-role" title={admin.email || ""}>{roleLabel}</div>
+      </div>
+      <button
+        type="button"
+        className="admin-user-logout"
+        onClick={onLogout}
+        title="Đăng xuất"
+        aria-label="Đăng xuất"
+      >
+        <Icon name="fas fa-right-from-bracket" />
+      </button>
+    </div>
+  );
+}
+
 // ─── Main Sidebar Component ───────────────────────────────────────────────────
-export default function Sidebar({ currentActivePage, onPageChange }) {
+export default function Sidebar({ currentActivePage, onPageChange, admin, onLogout }) {
   const [openId, setOpenId] = useState(null);
 
   // Tự động mở menu cha chứa menu con đang được chọn khi load trang hoặc chuyển trang
@@ -176,11 +206,11 @@ export default function Sidebar({ currentActivePage, onPageChange }) {
 
   const toggle = (id) => setOpenId((prev) => (prev === id ? null : id));
 
-  const sharedProps = { 
-    activeId: currentActivePage, 
-    openId, 
-    onToggle: toggle, 
-    onActivate: onPageChange 
+  const sharedProps = {
+    activeId: currentActivePage,
+    openId,
+    onToggle: toggle,
+    onActivate: onPageChange
   };
 
   return (
@@ -221,6 +251,9 @@ export default function Sidebar({ currentActivePage, onPageChange }) {
           {...sharedProps}
         />
       </ul>
+
+      {/* Footer: thông tin admin đang đăng nhập + nút logout */}
+      <AdminUserCard admin={admin} onLogout={onLogout} />
     </nav>
   );
 }

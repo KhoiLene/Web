@@ -1349,7 +1349,8 @@ import { request } from "../api-service/api.js";
 
   async function loadOrdersPreview() {
     const userId = getLoggedInUserId();
-    if (!userId) {
+    const userInfo = getLoggedInUserInfo();
+    if (!userId && !userInfo.phone && !userInfo.email) {
       $ordersEmpty.style.display = "block";
       $ordersEmpty.textContent = "Vui lòng đăng nhập để xem lịch sử đơn hàng.";
       $ordersMount.innerHTML = "";
@@ -1359,9 +1360,23 @@ import { request } from "../api-service/api.js";
     try {
       const r = await request(
         "GET",
-        `/db/orders?select=order_code,final_price,status,created_at&customer_id=eq.${userId}&order=created_at.desc&limit=8`
+        `/orders?status=all&limit=50`
       );
-      const list = r.data || [];
+      const normalizePhone = (p) => String(p || '').replace(/\D/g, '').replace(/^84/, '0');
+      const myPhone = normalizePhone(userInfo.phone);
+      const myEmail = String(userInfo.email).toLowerCase();
+      const list = (r.data || [])
+        .filter((o) => {
+          if (userId && Number(o.customer_id) === Number(userId)) return true;
+          const orderPhone = normalizePhone(o.customer_phone || o.receiver_phone || o.phone || '');
+          if (myPhone && orderPhone === myPhone) return true;
+          const orderEmail = String(o.receiver_email || o.email || '').toLowerCase();
+          if (myEmail && orderEmail === myEmail) return true;
+          return false;
+        })
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 8);
+
       if (!list.length) {
         $ordersEmpty.style.display = "block";
         $ordersEmpty.textContent = "Chưa có đơn.";
@@ -1374,8 +1389,8 @@ import { request } from "../api-service/api.js";
         .map(
           (o) => `
             <div class="history-item">
-              <strong>${o.order_code}</strong>
-              <span>${o.status} • ${formatVND(o.final_price)} • ${formatDateVN(o.created_at)}</span>
+              <strong>${o.order_code || ('#' + o.id)}</strong>
+              <span>${o.status || ''} • ${formatVND(o.final_price)} • ${formatDateVN(o.created_at)}</span>
             </div>
           `
         )
@@ -1533,12 +1548,32 @@ import { request } from "../api-service/api.js";
       const receiverName  = $receiverName.value.trim();
       const receiverPhone = $receiverPhone.value.trim();
       const receiverAddr  = getAddressString();
+
+      // Nếu KH chưa đăng nhập → tra cứu hoặc tạo customer theo SĐT/email
+      // để đơn hàng luôn gắn với customer_id → khi admin xác nhận done
+      // sẽ tự cộng LTV / rank / voucher cho KH đó.
+      // Nếu đã đăng nhập thì bỏ qua: gán thẳng userId, không quan tâm
+      // tên/SĐT người nhận.
+      const receiverEmail = $receiverEmail.value.trim() || null;
+      let resolvedCustomerId = userId;
+      if (!resolvedCustomerId) {
+        const lookupRes = await request("POST", "/customers/lookup-or-create", {
+          phone: receiverPhone || null,
+          email: receiverEmail,
+          name:  receiverName || null,
+        });
+        resolvedCustomerId = lookupRes?.data?.customer_id;
+        if (!resolvedCustomerId) {
+          throw new Error("Không xác định được khách hàng. Vui lòng kiểm tra SĐT/Email.");
+        }
+      }
+
       const insertPayload = {
-        customer_id: userId,
+        customer_id: resolvedCustomerId,
         // Cột mới (FE đang đọc)
         receiver_name:    receiverName,
         receiver_phone:   receiverPhone,
-        receiver_email:   $receiverEmail.value.trim() || null,
+        receiver_email:   receiverEmail,
         receiver_address: receiverAddr,
         // Cột cũ (admin view v_orders_full + các trang admin dùng customer_name / customer_phone / address)
         // Ghi song song để admin hiển thị tên KH mà không cần sửa view.

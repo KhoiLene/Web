@@ -39,6 +39,9 @@ input{padding:10px 12px;border-radius:12px;border:1px solid var(--border);backgr
 .voucher-item span{color:#000000;font-size:13px}
 .login-cta{display:flex;gap:12px;align-items:center;border:1px dashed rgba(255,255,255,.16);border-radius:18px;padding:16px;margin-top:18px;background:rgba(255,255,255,.02)}
 @media (max-width:900px){.customer-layout{grid-template-columns:1fr}}
+.edit-row{display:flex;gap:8px;align-items:center}
+.edit-row input{flex:1}
+input[readonly]{background:rgba(255,255,255,.02);color:#000000;cursor:default}
 /* OTP */
 .otp-row{display:flex;gap:8px;align-items:center}
 .otp-row input{flex:1}
@@ -51,3 +54,17 @@ input{padding:10px 12px;border-radius:12px;border:1px solid var(--border);backgr
 .otp-badge.is-pending{color:#000000;background:rgba(234,88,12,.1)}
 .otp-hint{color:#000000;font-size:12px}
 .otp-input-wrap.is-success .otp-hint{color:#000000}
+
+/* History item — header + product list */
+.history-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.history-head strong{color:#000000;font-size:15px}
+.history-head span{color:#000000;font-size:13px}
+.history-products{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
+.history-products li{margin:0}
+.history-products a{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:10px;text-decoration:none;color:#000000;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);transition:background .15s ease}
+.history-products a:hover{background:rgba(255,255,255,.08);text-decoration:underline}
+.history-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;background:#1f2937;flex-shrink:0;display:block}
+.history-thumb--placeholder{background:repeating-linear-gradient(45deg,#1f2937,#1f2937 6px,#111827 6px,#111827 12px)}
+.history-product-name{flex:1;color:#000000;font-size:14px;line-height:1.3}
+.history-qty{color:#000000;font-style:normal;font-size:13px;font-weight:700;background:rgba(106,17,203,.18);padding:2px 8px;border-radius:999px}
+.history-products-empty{padding:6px 8px;color:#000000;font-size:13px;font-style:italic}

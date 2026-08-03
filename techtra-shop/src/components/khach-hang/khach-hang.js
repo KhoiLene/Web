@@ -43,7 +43,7 @@ import { customersApi, request } from "../api-service/api.js";
   const $emailVerifiedBadge = document.getElementById("emailVerifiedBadge");
 
   // State lưu giá trị phone/email ban đầu (để check isDirty)
-  const original = { phone: "", email: "" };
+  const original = { name: "", phone: "", email: "", address: "" };
 
   // State OTP: đã verify hay chưa
   const verification = {
@@ -52,6 +52,56 @@ import { customersApi, request } from "../api-service/api.js";
   };
 
   const COOLDOWN_SECS = 60;
+
+  // Helpers: bật/tắt chế độ chỉnh sửa cho từng field
+  function enableEdit(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.removeAttribute("readonly");
+    input.value = "";
+    input.focus();
+    if (inputId === "customerPhone" || inputId === "customerEmail") {
+      const field = inputId === "customerPhone" ? "phone" : "email";
+      verification[field].verified = false;
+      verification[field].pendingValue = "";
+      const sendBtn = document.getElementById(inputId === "customerPhone" ? "sendPhoneOtpBtn" : "sendEmailOtpBtn");
+      if (sendBtn) sendBtn.hidden = false;
+      updateUiForVerification();
+    }
+  }
+
+  function revertToOriginal(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.setAttribute("readonly", "true");
+    input.value = original[inputId === "customerName" ? "name" : inputId === "customerPhone" ? "phone" : inputId === "customerEmail" ? "email" : "address"] || "";
+    if (inputId === "customerPhone" || inputId === "customerEmail") {
+      const field = inputId === "customerPhone" ? "phone" : "email";
+      const sendBtn = document.getElementById(inputId === "customerPhone" ? "sendPhoneOtpBtn" : "sendEmailOtpBtn");
+      if (sendBtn) sendBtn.hidden = true;
+      verification[field].verified = !!original[field];
+      verification[field].pendingValue = original[field];
+      const wrap = document.getElementById(inputId === "customerPhone" ? "phoneOtpWrap" : "emailOtpWrap");
+      if (wrap) wrap.hidden = true;
+      updateUiForVerification();
+    }
+  }
+
+  document.querySelectorAll(".btn-edit").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = btn.getAttribute("data-target");
+      if (!target) return;
+      if (btn.textContent === "Đổi") {
+        enableEdit(target);
+        btn.textContent = "Hủy";
+        btn.classList.add("btn-edit-cancel");
+      } else {
+        revertToOriginal(target);
+        btn.textContent = "Đổi";
+        btn.classList.remove("btn-edit-cancel");
+      }
+    });
+  });
 
   // Convention: sau khi đăng nhập thành công, dang-nhap.js set cả 2 key:
   //   - techtra_customer_id : id dạng số (để query Supabase)
@@ -101,8 +151,10 @@ import { customersApi, request } from "../api-service/api.js";
     $address.value = data.address || "";
 
     // Lưu giá trị ban đầu để so sánh isDirty
+    original.name = String(data.name || "").trim();
     original.phone = String(data.phone || "").trim();
     original.email = String(data.email || "").trim();
+    original.address = String(data.address || "").trim();
 
     // KH đã có phone/email trong DB → coi như verified (đã xác nhận lúc đăng ký)
     verification.phone.verified = !!original.phone;
@@ -160,10 +212,30 @@ import { customersApi, request } from "../api-service/api.js";
   async function loadOrders() {
     if (!customerId) return;
 
-    // Backend không có view v_orders_full → query trực tiếp /api/orders rồi filter customer_id phía client.
+    // Backend không có view v_orders_full → query trực tiếp /api/orders rồi filter phía client.
+    // Fallback theo phone/email để hiện cả đơn cũ chưa liên kết customer_id.
     const r = await request("GET", `/orders?status=all&limit=500`);
+    const normalizePhone = (p) => String(p || '').replace(/\D/g, '').replace(/^84/, '0');
+
+    let userPhone = '';
+    let userEmail = '';
+    try {
+      const u = JSON.parse(localStorage.getItem("techtra_user") || "null");
+      userPhone = u?.phone || '';
+      userEmail = u?.email || '';
+    } catch (_) {}
+
+    const myPhone = normalizePhone(userPhone);
+    const myEmail = String(userEmail).toLowerCase();
     const list = (r.data || [])
-      .filter((o) => Number(o.customer_id) === Number(customerId))
+      .filter((o) => {
+        if (Number(o.customer_id) === Number(customerId)) return true;
+        const orderPhone = normalizePhone(o.customer_phone || o.receiver_phone || o.phone || '');
+        if (myPhone && orderPhone === myPhone) return true;
+        const orderEmail = String(o.receiver_email || o.email || '').toLowerCase();
+        if (myEmail && orderEmail === myEmail) return true;
+        return false;
+      })
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, 10);
 
@@ -174,17 +246,88 @@ import { customersApi, request } from "../api-service/api.js";
       return;
     }
 
+    // Lấy danh sách sản phẩm trong các đơn (order_items) + slug của product để click.
+    // list đã slice 10 → orderIds ≤ 10 và productIds cũng nhỏ → không cần chunk.
+    const orderIds = list.map((o) => o.id).filter(Boolean);
+    let itemsByOrder = {};
+    let slugByProduct = {};
+
+    if (orderIds.length) {
+      try {
+        const itemsRes = await request(
+          "GET",
+          `/db/order_items?select=order_id,product_id,product_name,image_url,quantity&order_id=in.(${orderIds.join(",")})&limit=100`
+        );
+        const allItems = itemsRes.data || [];
+        itemsByOrder = allItems.reduce((acc, it) => {
+          (acc[it.order_id] = acc[it.order_id] || []).push(it);
+          return acc;
+        }, {});
+
+        const productIds = Array.from(
+          new Set(allItems.map((it) => it.product_id).filter(Boolean))
+        );
+        if (productIds.length) {
+          const productsRes = await request(
+            "GET",
+            `/db/products?select=id,slug&id=in.(${productIds.join(",")})&limit=200`
+          );
+          (productsRes.data || []).forEach((p) => {
+            slugByProduct[p.id] = p.slug;
+          });
+        }
+      } catch (err) {
+        console.warn("[loadOrders] items fetch failed", err);
+      }
+    }
+
     $ordersEmpty.style.display = "none";
     $ordersMount.innerHTML = list
-      .map(
-        (o) => `
+      .map((o) => {
+        const items = itemsByOrder[o.id] || [];
+        const productsHtml = items.length
+          ? `<ul class="history-products">${items
+              .map((it) => {
+                const slug = slugByProduct[it.product_id];
+                const href = slug
+                  ? `/components/san-pham/san-pham.html?slug=${encodeURIComponent(slug)}`
+                  : "#";
+                const img = it.image_url
+                  ? `<img class="history-thumb" src="${it.image_url}" alt="" loading="lazy" />`
+                  : `<span class="history-thumb history-thumb--placeholder"></span>`;
+                return `
+                  <li>
+                    <a href="${href}"${slug ? '' : ' onclick="event.preventDefault()"'}>
+                      ${img}
+                      <span class="history-product-name">${escapeHtml(it.product_name || "Sản phẩm")}</span>
+                      <em class="history-qty">x${Number(it.quantity || 1)}</em>
+                    </a>
+                  </li>
+                `;
+              })
+              .join("")}</ul>`
+          : `<div class="history-products-empty">Không có sản phẩm trong đơn.</div>`;
+        return `
           <div class="history-item">
-            <strong>${o.order_code || ("#" + o.id)}</strong>
-            <span>${o.status || ""} • ${formatVND(o.final_price)} • ${new Date(o.created_at).toLocaleDateString("vi-VN")}</span>
+            <div class="history-head">
+              <strong>${escapeHtml(o.order_code || ("#" + o.id))}</strong>
+              <span>${escapeHtml(o.status || "")} • ${formatVND(o.final_price)} • ${new Date(o.created_at).toLocaleDateString("vi-VN")}</span>
+            </div>
+            ${productsHtml}
           </div>
-        `
-      )
+        `;
+      })
       .join("");
+  }
+
+  // Escape HTML an toàn cho string user/DB render ra DOM
+  function escapeHtml(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   async function loadLoyaltyAndVouchers() {
@@ -201,14 +344,17 @@ import { customersApi, request } from "../api-service/api.js";
       ),
     ]);
 
-    const loyalty = (loyaltyRes.data || [])[0];
+    // request() trả về { success, data } hoặc { data }
+    const loyaltyRows = loyaltyRes?.data || loyaltyRes || [];
+    const loyalty = (Array.isArray(loyaltyRows) ? loyaltyRows : [loyaltyRows])[0];
     if (loyalty) {
       $rank.textContent = loyalty.rank || "—";
       $ltv.textContent = formatVND(loyalty.ltv);
       $orders.textContent = String(loyalty.total_orders || 0);
     }
 
-    const vouchers = vouchersRes.data || [];
+    const vouchersRaw = vouchersRes?.data || vouchersRes || [];
+    const vouchers = Array.isArray(vouchersRaw) ? vouchersRaw : [vouchersRaw];
     $vouchersMount.innerHTML = "";
 
     if (!vouchers.length) {
@@ -274,10 +420,24 @@ import { customersApi, request } from "../api-service/api.js";
       await request("PATCH", "/db/customers", { set: payload, where: { id: customerId } });
 
       // Cập nhật lại original sau khi lưu thành công
+      original.name = $name.value.trim();
       original.phone = newPhone;
       original.email = newEmail;
+      original.address = $address.value.trim();
       verification.phone.verified = !!newPhone;
       verification.email.verified = !!newEmail;
+
+      // Khóa lại các input và đổi nút "Hủy" → "Đổi"
+      [$name, $phone, $email, $address].forEach((input) => input.setAttribute("readonly", "true"));
+      document.querySelectorAll(".btn-edit").forEach((btn) => {
+        btn.textContent = "Đổi";
+        btn.classList.remove("btn-edit-cancel");
+      });
+      $sendPhoneOtpBtn.hidden = true;
+      $sendEmailOtpBtn.hidden = true;
+      $phoneOtpWrap.hidden = true;
+      $emailOtpWrap.hidden = true;
+
       updateUiForVerification();
 
       $msg.textContent = "Lưu thành công.";

@@ -40,24 +40,21 @@ function getApiService() {
 async function loadLatestBlogPosts(limit = 6) {
     try {
         const { request } = await getApiService();
-        // Backend không hỗ trợ join kiểu PostgREST → tách 2 query
-        const params = new URLSearchParams({
-            select: "id,title,slug,summary,excerpt_html,thumbnail,thumbnail_source,author_id,published_at,created_at,category_id",
-            status: "eq.published",
-            order: "published_at.desc",
-            limit: String(limit),
-        });
-        let list = (await request("GET", `/db/posts?${params.toString()}`)) || [];
-
-        // Nếu không có bài nào sort theo published_at (toàn NULL), fallback created_at
-        if (list.length === 0) {
-            const fallback = new URLSearchParams({
+        // Backend trả về { success: true, data: [...] }
+        const fetchPosts = async (orderBy) => {
+            const params = new URLSearchParams({
                 select: "id,title,slug,summary,excerpt_html,thumbnail,thumbnail_source,author_id,published_at,created_at,category_id",
                 status: "eq.published",
-                order: "created_at.desc",
+                order: orderBy,
                 limit: String(limit),
             });
-            list = (await request("GET", `/db/posts?${fallback.toString()}`)) || [];
+            const res = await request("GET", `/db/posts?${params.toString()}`);
+            return Array.isArray(res) ? res : (res?.data || []);
+        };
+
+        let list = await fetchPosts("published_at.desc");
+        if (!list.length) {
+            list = await fetchPosts("created_at.desc");
         }
 
         // Lấy tên nhóm nếu có category_id
@@ -65,10 +62,11 @@ async function loadLatestBlogPosts(limit = 6) {
         let catMap = {};
         if (catIds.length) {
             const inList = `in.(${catIds.join(",")})`;
-            const cats = (await request(
+            const catsRes = await request(
                 "GET",
                 `/db/news_categories?select=id,name,slug&id=${inList}`
-            )) || [];
+            );
+            const cats = Array.isArray(catsRes) ? catsRes : (catsRes?.data || []);
             catMap = Object.fromEntries(cats.map((c) => [c.id, c]));
         }
         const enriched = list.map((r) => ({ ...r, news_categories: catMap[r.category_id] || null }));

@@ -238,25 +238,43 @@ import { ordersApi, request } from "../api-service/api.js";
   }
 
   async function loadOrdersPreviewIfLoggedIn() {
-    // Tài khoản shop dùng backend login, nhưng FE đang dùng supabase anon key.
-    // Vì vậy ở đây chỉ hiển thị preview nếu localStorage có customer_id.
-    const customerId = localStorage.getItem("techtra_customer_id");
-    if (!customerId) return;
+    // Đọc customer_id từ localStorage (tương thích cả techtra_customer_id và techtra_user.customer_id)
+    let customerId = null;
+    let userPhone = '';
+    let userEmail = '';
+    try {
+      const rawId = localStorage.getItem("techtra_customer_id");
+      if (rawId) customerId = Number(rawId);
+      const rawUser = localStorage.getItem("techtra_user");
+      const user = rawUser ? JSON.parse(rawUser) : null;
+      if (!customerId && user?.customer_id) customerId = Number(user.customer_id);
+      userPhone = user?.phone || '';
+      userEmail = user?.email || '';
+    } catch (_) {}
+    if (!customerId && !userPhone && !userEmail) return;
 
     try {
-      const r = await request(
-        "GET",
-        `/orders?status=all`
-      );
-      const data = (r.data || []).filter((o) => Number(o.customer_id) === Number(customerId)).slice(0, 4);
+      const r = await request("GET", `/orders?status=all`);
+      const normalizePhone = (p) => String(p || '').replace(/\D/g, '').replace(/^84/, '0');
+      const myPhone = normalizePhone(userPhone);
+      const data = (r.data || [])
+        .filter((o) => {
+          if (customerId && Number(o.customer_id) === customerId) return true;
+          const orderPhone = normalizePhone(o.customer_phone || o.receiver_phone || o.phone || '');
+          if (myPhone && orderPhone === myPhone) return true;
+          if (userEmail && String(o.receiver_email || o.email || '').toLowerCase() === String(userEmail).toLowerCase()) return true;
+          return false;
+        })
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 4);
       if (!data.length) return;
 
       $ordersPreviewMount.style.display = "block";
       $ordersPreviewList.innerHTML = data
         .map((o) => `
           <div class="history-item">
-            <strong>${o.order_code}</strong>
-            <span>${o.status} • ${formatVND(o.final_price)} • ${formatDateVN(o.created_at)}</span>
+            <strong>${o.order_code || ('#' + o.id)}</strong>
+            <span>${o.status || ''} • ${formatVND(o.final_price)} • ${formatDateVN(o.created_at)}</span>
           </div>
         `)
         .join("");

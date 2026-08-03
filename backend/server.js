@@ -247,19 +247,21 @@ app.patch('/api/orders/:id', async (req, res) => {
     await client.query('BEGIN');
 
     // Lấy trạng thái hiện tại trước khi update
-    const before = await client.query('SELECT status, status_was_deducted FROM orders WHERE id = $1 FOR UPDATE', [id]);
+    const before = await client.query('SELECT status, status_was_deducted, customer_id FROM orders WHERE id = $1 FOR UPDATE', [id]);
     if (!before.rowCount) {
       await client.query('COMMIT');
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
     const oldStatus = before.rows[0].status;
     const alreadyDeducted = before.rows[0].status_was_deducted;
+    const orderCustomerId = before.rows[0].customer_id;
 
     const vals = Object.values(req.body);
     const set = cols.map((c, i) => `${c} = ${i + 1}`).join(',');
     const q = `UPDATE orders SET ${set}, updated_at = NOW() WHERE id = ${cols.length + 1} RETURNING *`;
     const r = await client.query(q, [...vals, id]);
     const newStatus = r.rows[0].status;
+    const customerId = r.rows[0].customer_id;
 
     // Trừ tồn kho khi chuyển từ pending -> confirmed (chưa trừ lần nào)
     if (oldStatus !== 'confirmed' && newStatus === 'confirmed' && !alreadyDeducted) {
@@ -276,6 +278,21 @@ app.patch('/api/orders/:id', async (req, res) => {
         `UPDATE orders SET status_was_deducted = true WHERE id = $1`,
         [id]
       );
+    }
+
+    // Khi đơn chuyển sang done hoặc bất kỳ thay đổi nào trên đơn đã hoàn thành,
+    // cập nhật lại thống kê khách thân thiết và cấp voucher nếu đủ điều kiện.
+    if (orderCustomerId && newStatus === 'done') {
+      try {
+        const cid = parseInt(orderCustomerId, 10);
+        if (!isNaN(cid)) {
+          await client.query(`SELECT fn_refresh_customer_stats(${cid})`);
+          await client.query(`SELECT fn_loyalty_issue_voucher(${cid})`);
+        }
+      } catch (loyaltyErr) {
+        // Không làm fail update đơn hàng nếu loyalty lỗi
+        console.error('[orders patch] loyalty refresh failed:', loyaltyErr.message);
+      }
     }
 
     await client.query('COMMIT');
@@ -477,6 +494,70 @@ app.patch('/api/customers/:id', async (req, res) => {
     const r = await pool.query(q, [...vals, id]);
     return res.json({ success: true, data: r.rows[0] });
   } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/customers/lookup-or-create
+// Dùng khi KH thanh toán chưa đăng nhập: tìm customer theo phone hoặc email,
+// nếu chưa có thì tạo mới với name từ form (mặc định "Unknown Customer").
+// Yêu cầu ít nhất 1 trong phone/email.
+app.post('/api/customers/lookup-or-create', async (req, res) => {
+  try {
+    const { phone, email, name } = req.body || {};
+    const cleanPhone = String(phone || '').trim() || null;
+    const cleanEmail = String(email || '').trim() || null;
+    const cleanName  = String(name  || '').trim() || 'Unknown Customer';
+
+    if (!cleanPhone && !cleanEmail) {
+      return res.status(400).json({ success: false, error: 'Cần ít nhất 1 trong phone/email' });
+    }
+
+    // 1) Tìm theo phone trước (phone không UNIQUE, có thể có nhiều KH cùng SĐT)
+    if (cleanPhone) {
+      const r = await pool.query(
+        'SELECT id FROM customers WHERE phone = $1 ORDER BY id ASC LIMIT 1',
+        [cleanPhone]
+      );
+      if (r.rowCount) {
+        return res.json({ success: true, data: { customer_id: r.rows[0].id, created: false } });
+      }
+    }
+
+    // 2) Nếu chưa thấy → tìm theo email (email UNIQUE)
+    if (cleanEmail) {
+      const r = await pool.query(
+        'SELECT id FROM customers WHERE email = $1 LIMIT 1',
+        [cleanEmail]
+      );
+      if (r.rowCount) {
+        return res.json({ success: true, data: { customer_id: r.rows[0].id, created: false } });
+      }
+    }
+
+    // 3) Chưa có → INSERT. Email UNIQUE nên nếu trùng race → SELECT lại.
+    try {
+      const r = await pool.query(
+        `INSERT INTO customers (name, phone, email, is_active)
+         VALUES ($1, $2, $3, true)
+         RETURNING id`,
+        [cleanName, cleanPhone, cleanEmail]
+      );
+      return res.json({ success: true, data: { customer_id: r.rows[0].id, created: true } });
+    } catch (err) {
+      if (err.code === '23505' && cleanEmail) {
+        const r = await pool.query(
+          'SELECT id FROM customers WHERE email = $1 LIMIT 1',
+          [cleanEmail]
+        );
+        if (r.rowCount) {
+          return res.json({ success: true, data: { customer_id: r.rows[0].id, created: false } });
+        }
+      }
+      throw err;
+    }
+  } catch (err) {
+    console.error('[customers lookup-or-create]', err.message);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -685,6 +766,41 @@ app.post('/api/auth/admin/update', async (req, res) => {
     return res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// Admin login (FE lưu admin vào localStorage để Sidebar hiển thị tên)
+app.post('/api/auth/admin/login', async (req, res) => {
+  try {
+    const { identifier, password } = req.body || {};
+    if (!identifier || !password) {
+      return res.status(400).json({ success: false, error: 'identifier và password là bắt buộc' });
+    }
+    const idLower = String(identifier).trim().toLowerCase();
+    const r = await pool.query(
+      `SELECT id, name, username, email, phone, full_name, role, admin_priority, is_active, password
+       FROM admins
+       WHERE username = $1 OR email = $1
+       LIMIT 1`,
+      [idLower]
+    );
+    if (!r.rowCount) {
+      return res.status(401).json({ success: false, error: 'Tài khoản không tồn tại' });
+    }
+    const admin = r.rows[0];
+    if (!admin.is_active) {
+      return res.status(403).json({ success: false, error: 'Tài khoản đã bị khoá' });
+    }
+    const ok = await bcrypt.compare(String(password), admin.password || '');
+    if (!ok) {
+      return res.status(401).json({ success: false, error: 'Mật khẩu không đúng' });
+    }
+    // Trả về thông tin (trừ password)
+    delete admin.password;
+    return res.json({ success: true, data: admin });
+  } catch (err) {
+    console.error('[admin login]', err.message);
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -956,7 +1072,7 @@ app.post('/api/auth/login', async (req, res) => {
     try {
       // ensure customers has user_id column (idempotent migration)
       await pool.query(`
-        DO $
+        DO $$
         BEGIN
           IF NOT EXISTS (
             SELECT 1 FROM information_schema.columns
@@ -964,7 +1080,7 @@ app.post('/api/auth/login', async (req, res) => {
           ) THEN
             ALTER TABLE customers ADD COLUMN user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE SET NULL;
           END IF;
-        END $;
+        END $$;
       `);
 
       const custByUser = await pool.query('SELECT id FROM customers WHERE user_id = $1 LIMIT 1', [user.id]);

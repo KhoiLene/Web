@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker rm *)",
+      "Bash(docker run *)",
+      "Bash(node -e ' *)",
+      "Bash(node server.js)",
+      "Bash(netstat -ano)",
+      "Bash(powershell -Command \"Stop-Process -Id 12080 -Force\" 2>&1)",
+      "Bash(curl -s -o - -w \"\\\\nHTTP %{http_code}\\\\n\" -m 10 -X POST http://localhost:5050/api/auth/login -H \"Content-Type: application/json\" -d '{\"usernameOrEmail\":\"admin\",\"password\":\"admin123\"}')"
+    ]
+  }
+}

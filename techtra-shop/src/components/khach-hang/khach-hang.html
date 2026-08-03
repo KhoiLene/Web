@@ -42,13 +42,17 @@
             <form id="profileForm" class="form-grid">
               <div class="field">
                 <label for="customerName">Họ tên</label>
-                <input id="customerName" type="text" placeholder="Nhập họ tên" />
+                <div class="edit-row">
+                  <input id="customerName" type="text" placeholder="Nhập họ tên" readonly />
+                  <button type="button" class="btn-mini btn-edit" data-target="customerName">Đổi</button>
+                </div>
               </div>
               <div class="field">
                 <label for="customerPhone">Số điện thoại</label>
                 <div class="otp-row">
-                  <input id="customerPhone" type="text" placeholder="Nhập số điện thoại" />
-                  <button type="button" id="sendPhoneOtpBtn" class="btn-mini">Gửi mã</button>
+                  <input id="customerPhone" type="text" placeholder="Nhập số điện thoại" readonly />
+                  <button type="button" id="sendPhoneOtpBtn" class="btn-mini" hidden>Gửi mã</button>
+                  <button type="button" class="btn-mini btn-edit" data-target="customerPhone">Đổi</button>
                   <span id="phoneVerifiedBadge" class="otp-badge" hidden>✓ Đã xác thực</span>
                 </div>
                 <div class="otp-input-wrap" id="phoneOtpWrap" hidden>
@@ -60,8 +64,9 @@
               <div class="field">
                 <label for="customerEmail">Email</label>
                 <div class="otp-row">
-                  <input id="customerEmail" type="email" placeholder="Nhập email" />
-                  <button type="button" id="sendEmailOtpBtn" class="btn-mini">Gửi mã</button>
+                  <input id="customerEmail" type="email" placeholder="Nhập email" readonly />
+                  <button type="button" id="sendEmailOtpBtn" class="btn-mini" hidden>Gửi mã</button>
+                  <button type="button" class="btn-mini btn-edit" data-target="customerEmail">Đổi</button>
                   <span id="emailVerifiedBadge" class="otp-badge" hidden>✓ Đã xác thực</span>
                 </div>
                 <div class="otp-input-wrap" id="emailOtpWrap" hidden>
@@ -72,7 +77,10 @@
               </div>
               <div class="field field--full">
                 <label for="customerAddress">Địa chỉ</label>
-                <input id="customerAddress" type="text" placeholder="Nhập địa chỉ" />
+                <div class="edit-row">
+                  <input id="customerAddress" type="text" placeholder="Nhập địa chỉ" readonly />
+                  <button type="button" class="btn-mini btn-edit" data-target="customerAddress">Đổi</button>
+                </div>
               </div>
 
               <div class="form-actions">
@@ -134,6 +142,6 @@
 
     <script src="/components/header/partials.js?v=3"></script>
     <script src="/components/dang-ky/sendCode.js?v=1"></script>
-    <script type="module" src="/components/khach-hang/khach-hang.js?v=1"></script>
+    <script type="module" src="/components/khach-hang/khach-hang.js?v=2"></script>
   </body>
 </html>

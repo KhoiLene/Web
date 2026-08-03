@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- SEO Meta Tags -->
+    <title>Cỏ Mềm - Mỹ Phẩm Thiên Nhiên Lành và Thật | Giao diện mẫu API</title>
+    <meta name="description" content="Giao diện mẫu cao cấp lấy cảm hứng từ Cỏ Mềm Lab. Chuyên cung cấp mỹ phẩm 100% thiên nhiên, lành tính và an toàn cho cả mẹ bầu. Thiết kế sẵn vị trí tích hợp API sản phẩm và hình ảnh.">
+    <meta name="keywords" content="mỹ phẩm thiên nhiên, cỏ mềm, cỏ mềm lab, mỹ phẩm thuần chay, son không chì, dầu gội thiên nhiên">
+    
+    <!-- Open Graph (Facebook / Zalo) -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Cỏ Mềm - Mỹ Phẩm Thiên Nhiên Lành và Thật">
+    <meta property="og:description" content="Trải nghiệm dòng sản phẩm chăm sóc da và tóc tự nhiên từ thảo mộc Việt Nam. An toàn tuyệt đối cho gia đình.">
+    <meta property="og:image" content="assets/og-image-placeholder.jpg">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- TOP ANNOUNCEMENT BAR -->
+    <div class="topbar">
+        <div class="container">
+            <span>✨ MIỄN PHÍ VẬN CHUYỂN TOÀN QUỐC CHO ĐƠN HÀNG TỪ 249K | MUA NGAY CÓ QUÀ! ✨</span>
+        </div>
+    </div>
+
+    <!-- MAIN HEADER -->
+    <header id="main-header-el">
+        <div class="container">
+            <div class="main-header">
+                <!-- Mobile Burger Button -->
+                <button class="mobile-menu-toggle" id="menu-toggle-btn" aria-label="Mở menu">
+                    <i class="fa-solid fa-bars-staggered"></i>
+                </button>
+
+                <!-- Brand Logo (Placeholder for Logo API) -->
+                <div class="logo">
+                    <a href="#" id="brand-logo-link">
+                        <!-- Left blank for logo script or default svg for premium branding -->
+                        <svg width="150" height="40" viewBox="0 0 150 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <text x="0" y="28" font-family="'Montserrat', sans-serif" font-weight="700" font-size="24" fill="#005d37">CỎ MỀM</text>
+                            <circle cx="120" cy="20" r="6" fill="#d2a45c"/>
+                            <path d="M125 15C127 10 133 10 135 15C137 20 133 28 125 28C117 28 113 20 115 15C117 10 123 10 125 15Z" fill="#005d37" fill-opacity="0.3"/>
+                            <text x="110" y="32" font-family="'Plus Jakarta Sans', sans-serif" font-size="8" font-weight="600" fill="#5a6b62" letter-spacing="1">LABS</text>
+                        </svg>
+                    </a>
+                </div>
+
+                <!-- Product Search Box -->
+                <div class="search-container">
+                    <form action="#" method="GET" id="search-form">
+                        <input type="text" class="search-bar" id="search-input" placeholder="Tìm sản phẩm thảo mộc bạn cần..." autocomplete="off">
+                        <button type="submit" class="search-btn" aria-label="Tìm kiếm">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Account & Cart Actions -->
+                <div class="header-actions">
+                    <!-- User Account -->
+                    <a href="#" class="header-action-btn" id="user-account-btn" title="Tài khoản">
+                        <i class="fa-regular fa-user"></i>
+                    </a>
+                    
+                    <!-- Wishlist -->
+                    <a href="#" class="header-action-btn" id="wishlist-btn" title="Yêu thích">
+                        <i class="fa-regular fa-heart"></i>
+                        <span class="badge" id="wishlist-count">0</span>
+                    </a>
+
+                    <!-- Mini Cart -->
+                    <button class="header-action-btn" id="cart-drawer-toggle" title="Giỏ hàng">
+                        <i class="fa-solid fa-bag-shopping"></i>
+                        <span class="badge" id="cart-badge-count">0</span>
+                        <div class="cart-text-group">
+                            <span>Giỏ hàng</span>
+                            <span id="cart-header-price">0 đ</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN DESKTOP NAVIGATION -->
+        <nav class="nav-bar">
+            <div class="container">
+                <ul class="nav-list" id="main-navigation-menu">
+                    <li><a href="#" class="nav-link active">Trang chủ</a></li>
+                    <li><a href="#" class="nav-link">Sản phẩm mới</a></li>
+                    <li><a href="#" class="nav-link">Chăm sóc da</a></li>
+                    <li><a href="#" class="nav-link">Chăm sóc tóc</a></li>
+                    <li><a href="#" class="nav-link">Trang điểm</a></li>
+                    <li><a href="#" class="nav-link">Chăm sóc cơ thể</a></li>
+                    <li><a href="#" class="nav-link">Combo Quà tặng</a></li>
+                    <li><a href="#" class="nav-link">Về Cỏ Mềm</a></li>
+                    <li><a href="#" class="nav-link">Hệ thống cửa hàng</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <div class="header-spacer"></div>
+
+    <!-- MAIN BODY -->
+    <main>
+        
+        <!-- HERO BANNER SLIDER (API ready) -->
+        <section class="hero-slider" id="hero-slider-section">
+            <div class="slider-container" id="slider-container-el">
+                <!-- JavaScript will populate slide elements here from API -->
+                <!-- Showing premium Skeleton Slides while loading -->
+                <div class="slide active placeholder-slide">
+                    <div class="slide-bg"></div>
+                    <div class="container">
+                        <div class="slide-content">
+                            <div class="skeleton skeleton-text title" style="width: 150px; margin-bottom: 20px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 100%; height: 50px; margin-bottom: 20px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 80%; height: 30px; margin-bottom: 30px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 180px; height: 48px; border-radius: 9999px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Arrows -->
+            <button class="slider-arrow slider-arrow-prev" id="slider-prev-btn" aria-label="Slide trước">
+                <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <button class="slider-arrow slider-arrow-next" id="slider-next-btn" aria-label="Slide sau">
+                <i class="fa-solid fa-chevron-right"></i>
+            </button>
+
+            <!-- Dots -->
+            <div class="slider-dots" id="slider-dots-container"></div>
+        </section>
+
+        <!-- BRAND CORE VALUES -->
+        <section class="brand-values">
+            <div class="container">
+                <div class="values-grid">
+                    <div class="value-card">
+                        <div class="value-icon"><i class="fa-solid fa-seedling"></i></div>
+                        <h3 class="value-title">100% Thiên Nhiên</h3>
+                        <p class="value-desc">Nguyên liệu thuần thực vật tinh khiết từ vườn dược liệu Việt Nam</p>
+                    </div>
+                    <div class="value-card">
+                        <div class="value-icon"><i class="fa-solid fa-shield-heart"></i></div>
+                        <h3 class="value-title">Lành và Thật</h3>
+                        <p class="value-desc">Công thức tối giản, không chất bảo quản độc hại, cam kết công khai thành phần</p>
+                    </div>
+                    <div class="value-card">
+                        <div class="value-icon"><i class="fa-solid fa-industry"></i></div>
+                        <h3 class="value-title">Nhà Máy Đạt CGMP</h3>
+                        <p class="value-desc">Quy trình sản xuất khép kín, vô trùng đạt chứng nhận CGMP ASEAN</p>
+                    </div>
+                    <div class="value-card">
+                        <div class="value-icon"><i class="fa-solid fa-baby"></i></div>
+                        <h3 class="value-title">An Toàn Cho Bé & Bầu</h3>
+                        <p class="value-desc">Mỹ phẩm siêu lành tính, được khuyên dùng bởi các chuyên gia y tế</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- DYNAMIC PRODUCT CATEGORIES SECTION (API ready) -->
+        <section class="categories-section section-padding" id="categories-section-el">
+            <div class="container">
+                <div class="section-title-wrapper">
+                    <h2 class="section-title">Danh mục nổi bật</h2>
+                    <p class="section-subtitle">Khám phá các dòng sản phẩm thảo mộc an toàn và tự nhiên</p>
+                </div>
+
+                <div class="categories-slider-wrapper">
+                    <div class="categories-grid" id="categories-container-el">
+                        <!-- Skeleton loading cards -->
+                        <!-- Loop of 6 items -->
+                        <div class="category-card">
+                            <div class="category-img-wrapper skeleton">
+                                <div class="skeleton-image"></div>
+                            </div>
+                            <div class="skeleton skeleton-text" style="width: 70%; height: 16px;"></div>
+                        </div>
+                        <div class="category-card">
+                            <div class="category-img-wrapper skeleton"><div class="skeleton-image"></div></div>
+                            <div class="skeleton skeleton-text" style="width: 70%; height: 16px;"></div>
+                        </div>
+                        <div class="category-card">
+                            <div class="category-img-wrapper skeleton"><div class="skeleton-image"></div></div>
+                            <div class="skeleton skeleton-text" style="width: 70%; height: 16px;"></div>
+                        </div>
+                        <div class="category-card">
+                            <div class="category-img-wrapper skeleton"><div class="skeleton-image"></div></div>
+                            <div class="skeleton skeleton-text" style="width: 70%; height: 16px;"></div>
+                        </div>
+                        <div class="category-card">
+                            <div class="category-img-wrapper skeleton"><div class="skeleton-image"></div></div>
+                            <div class="skeleton skeleton-text" style="width: 70%; height: 16px;"></div>
+                        </div>
+                        <div class="category-card">
+                            <div class="category-img-wrapper skeleton"><div class="skeleton-image"></div></div>
+                            <div class="skeleton skeleton-text" style="width: 70%; height: 16px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FLASH SALE SECTION (API ready) -->
+        <section class="container">
+            <div class="flash-sale" id="flash-sale-panel">
+                <div class="flash-sale-header">
+                    <div class="flash-sale-title-group">
+                        <h2 class="flash-sale-title">
+                            <i class="fa-solid fa-bolt"></i> Giờ Vàng Deal Xịn
+                        </h2>
+                        <!-- Countdown timer -->
+                        <div class="countdown" id="countdown-timer">
+                            <span class="countdown-label">Kết thúc sau</span>
+                            <div class="countdown-box" id="hours-box">00</div>
+                            <span class="countdown-divider">:</span>
+                            <div class="countdown-box" id="minutes-box">00</div>
+                            <span class="countdown-divider">:</span>
+                            <div class="countdown-box" id="seconds-box">00</div>
+                        </div>
+                    </div>
+                    <a href="#" class="btn btn-outline" style="padding: 8px 20px; font-size: 0.85rem;">Xem tất cả</a>
+                </div>
+
+                <div class="products-grid" id="flash-sale-products-container">
+                    <!-- Skeleton products -->
+                    <!-- Loop of 4 items -->
+                    <div class="product-card">
+                        <div class="product-img-link skeleton"><div class="skeleton-image"></div></div>
+                        <div class="product-info">
+                            <div class="skeleton skeleton-text" style="width: 40%; height: 14px;"></div>
+                            <div class="skeleton skeleton-text title"></div>
+                            <div class="skeleton skeleton-text price" style="margin-top: 10px;"></div>
+                        </div>
+                    </div>
+                    <div class="product-card">
+                        <div class="product-img-link skeleton"><div class="skeleton-image"></div></div>
+                        <div class="product-info">
+                            <div class="skeleton skeleton-text" style="width: 40%; height: 14px;"></div>
+                            <div class="skeleton skeleton-text title"></div>
+                            <div class="skeleton skeleton-text price" style="margin-top: 10px;"></div>
+                        </div>
+                    </div>
+                    <div class="product-card">
+                        <div class="product-img-link skeleton"><div class="skeleton-image"></div></div>
+                        <div class="product-info">
+                            <div class="skeleton skeleton-text" style="width: 40%; height: 14px;"></div>
+                            <div class="skeleton skeleton-text title"></div>
+                            <div class="skeleton skeleton-text price" style="margin-top: 10px;"></div>
+                        </div>
+                    </div>
+                    <div class="product-card">
+                        <div class="product-img-link skeleton"><div class="skeleton-image"></div></div>
+                        <div class="product-info">
+                            <div class="skeleton skeleton-text" style="width: 40%; height: 14px;"></div>
+                            <div class="skeleton skeleton-text title"></div>
+                            <div class="skeleton skeleton-text price" style="margin-top: 10px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- BEST SELLERS WITH CATEGORY TABS (API ready) -->
+        <section class="best-sellers-section section-padding" id="best-sellers-section-el">
+            <div class="container">
+                <div class="section-title-wrapper">
+                    <h2 class="section-title">Sản phẩm bán chạy nhất</h2>
+                    <p class="section-subtitle">Những công thức thảo mộc tinh tế được hàng triệu phụ nữ Việt tin dùng</p>
+                </div>
+
+                <!-- Tabs navigation -->
+                <div class="best-sellers-tabs" id="tab-navigation-container">
+                    <button class="tab-btn active" data-tab-id="all">Tất cả</button>
+                    <button class="tab-btn" data-tab-id="skincare">Chăm sóc da</button>
+                    <button class="tab-btn" data-tab-id="haircare">Chăm sóc tóc</button>
+                    <button class="tab-btn" data-tab-id="makeup">Trang điểm</button>
+                </div>
+
+                <!-- Grid containers for tabs -->
+                <!-- Standard skeleton layouts -->
+                <div class="tab-content active" id="best-sellers-grid-container">
+                    <div class="products-grid">
+                        <!-- Repeated skeletons -->
+                        <div class="product-card">
+                            <div class="product-img-link skeleton"><div class="skeleton-image"></div></div>
+                            <div class="product-info">
+                                <div class="skeleton skeleton-text" style="width: 40%; height: 14px;"></div>
+                                <div class="skeleton skeleton-text title"></div>
+                                <div class="skeleton skeleton-text price" style="margin-top: 10px;"></div>
+                            </div>
+                        </div>
+                        <div class="product-card">
+                            <div class="product-img-link skeleton"><div class="skeleton-image"></div></div>
+                            <div class="product-info">
+                                <div class="skeleton skeleton-text" style="width: 40%; height: 14px;"></div>
+                                <div class="skeleton skeleton-text title"></div>
+                                <div class="skeleton skeleton-text price" style="margin-top: 10px;"></div>
+                            </div>
+                        </div>
+                        <div class="product-card">
+                            <div class="product-img-link skeleton"><div class="skeleton-image"></div></div>
+                            <div class="product-info">
+                                <div class="skeleton skeleton-text" style="width: 40%; height: 14px;"></div>
+                                <div class="skeleton skeleton-text title"></div>
+                                <div class="skeleton skeleton-text price" style="margin-top: 10px;"></div>
+                            </div>
+                        </div>
+                        <div class="product-card">
+                            <div class="product-img-link skeleton"><div class="skeleton-image"></div></div>
+                            <div class="product-info">
+                                <div class="skeleton skeleton-text" style="width: 40%; height: 14px;"></div>
+                                <div class="skeleton skeleton-text title"></div>
+                                <div class="skeleton skeleton-text price" style="margin-top: 10px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- PROMOTIONAL BANNERS GRID (API ready) -->
+        <section class="container">
+            <div class="promo-banners-grid" id="promotional-banners-section">
+                <!-- Left Banner Placeholder -->
+                <div class="promo-banner-card placeholder-banner" id="promo-banner-left">
+                    <div class="promo-banner-img"></div>
+                    <div class="promo-banner-content">
+                        <span class="promo-tag">Quà tặng ngọt ngào</span>
+                        <h3 class="promo-title">Combo Quà Tặng Cho Nửa Yêu Thương</h3>
+                        <a href="#" class="btn btn-primary" style="padding: 10px 24px; font-size: 0.85rem;">Mua ngay</a>
+                    </div>
+                </div>
+
+                <!-- Right Banner Placeholder -->
+                <div class="promo-banner-card placeholder-banner" id="promo-banner-right">
+                    <div class="promo-banner-img"></div>
+                    <div class="promo-banner-content">
+                        <span class="promo-tag">Liệu pháp phục hồi</span>
+                        <h3 class="promo-title">Chăm Sóc Tóc Dược Liệu Bưởi Đỏ</h3>
+                        <a href="#" class="btn btn-primary" style="padding: 10px 24px; font-size: 0.85rem;">Khám phá</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- GREEN LIFE BLOG & CORNER (API ready) -->
+        <section class="blog-section section-padding" id="blog-posts-section">
+            <div class="container">
+                <div class="section-title-wrapper">
+                    <h2 class="section-title">Góc chia sẻ Cỏ Mềm</h2>
+                    <p class="section-subtitle">Kinh nghiệm chăm sóc sắc đẹp tự nhiên, lối sống xanh và bảo vệ môi trường</p>
+                </div>
+
+                <div class="blog-grid" id="blog-container-el">
+                    <!-- Skeleton Blogs -->
+                    <div class="blog-card">
+                        <div class="blog-img-link skeleton" style="aspect-ratio: 16/10;"></div>
+                        <div class="blog-content">
+                            <div class="skeleton skeleton-text" style="width: 30%; height: 12px; margin-bottom: 12px;"></div>
+                            <div class="skeleton skeleton-text title" style="margin-bottom: 12px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 100%; height: 32px; margin-bottom: 16px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 80px; height: 16px;"></div>
+                        </div>
+                    </div>
+                    <div class="blog-card">
+                        <div class="blog-img-link skeleton" style="aspect-ratio: 16/10;"></div>
+                        <div class="blog-content">
+                            <div class="skeleton skeleton-text" style="width: 30%; height: 12px; margin-bottom: 12px;"></div>
+                            <div class="skeleton skeleton-text title" style="margin-bottom: 12px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 100%; height: 32px; margin-bottom: 16px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 80px; height: 16px;"></div>
+                        </div>
+                    </div>
+                    <div class="blog-card">
+                        <div class="blog-img-link skeleton" style="aspect-ratio: 16/10;"></div>
+                        <div class="blog-content">
+                            <div class="skeleton skeleton-text" style="width: 30%; height: 12px; margin-bottom: 12px;"></div>
+                            <div class="skeleton skeleton-text title" style="margin-bottom: 12px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 100%; height: 32px; margin-bottom: 16px;"></div>
+                            <div class="skeleton skeleton-text" style="width: 80px; height: 16px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- NEWSLETTER SUBSCRIPTION -->
+        <section class="newsletter-section">
+            <div class="container">
+                <div class="newsletter-content">
+                    <h2 class="newsletter-title">Nhận thông tin ưu đãi lành mạnh</h2>
+                    <p class="newsletter-desc">Đăng ký email để nhận thông tin về các dòng sản phẩm mới, bí quyết làm đẹp thảo dược và phiếu giảm giá 10% cho đơn hàng đầu tiên.</p>
+                    <form class="newsletter-form" id="newsletter-subscription-form">
+                        <input type="email" class="newsletter-input" id="newsletter-email-field" placeholder="Nhập địa chỉ email của bạn..." required>
+                        <button type="submit" class="btn btn-accent">Đăng Ký</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer>
+        <div class="container">
+            <div class="footer-top">
+                <!-- Info Column -->
+                <div class="footer-column">
+                    <div class="footer-logo">
+                        <svg width="150" height="40" viewBox="0 0 150 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <text x="0" y="28" font-family="'Montserrat', sans-serif" font-weight="700" font-size="24" fill="#ffffff">CỎ MỀM</text>
+                            <circle cx="120" cy="20" r="6" fill="#d2a45c"/>
+                            <path d="M125 15C127 10 133 10 135 15C137 20 133 28 125 28C117 28 113 20 115 15C117 10 123 10 125 15Z" fill="#ffffff" fill-opacity="0.3"/>
+                            <text x="110" y="32" font-family="'Plus Jakarta Sans', sans-serif" font-size="8" font-weight="600" fill="#faf5ec" letter-spacing="1">LABS</text>
+                        </svg>
+                    </div>
+                    <p class="footer-about">
+                        Cỏ Mềm là thương hiệu Mỹ phẩm Thiên nhiên Việt Nam, được thành lập năm 2015 bởi Dược sĩ tốt nghiệp tại Pháp. Triết lý phát triển của Cỏ Mềm là sản xuất các sản phẩm "Lành và Thật" an toàn nhất cho sức khỏe con người và thân thiện môi trường.
+                    </p>
+                    <div class="footer-socials">
+                        <a href="#" class="social-icon" aria-label="Facebook"><i class="fa-brands fa-facebook-f"></i></a>
+                        <a href="#" class="social-icon" aria-label="Instagram"><i class="fa-brands fa-instagram"></i></a>
+                        <a href="#" class="social-icon" aria-label="Youtube"><i class="fa-brands fa-youtube"></i></a>
+                        <a href="#" class="social-icon" aria-label="Tiktok"><i class="fa-brands fa-tiktok"></i></a>
+                    </div>
+                </div>
+
+                <!-- Column 2 -->
+                <div class="footer-column">
+                    <h4>Về chúng tôi</h4>
+                    <ul class="footer-links">
+                        <li><a href="#">Câu chuyện thương hiệu</a></li>
+                        <li><a href="#">Vườn dược liệu Cỏ Mềm</a></li>
+                        <li><a href="#">Giá trị cốt lõi</a></li>
+                        <li><a href="#">Hoạt động xã hội</a></li>
+                        <li><a href="#">Tin tức báo chí</a></li>
+                        <li><a href="#">Tuyển dụng</a></li>
+                    </ul>
+                </div>
+
+                <!-- Column 3 -->
+                <div class="footer-column">
+                    <h4>Hỗ trợ khách hàng</h4>
+                    <ul class="footer-links">
+                        <li><a href="#">Chính sách khách hàng thân thiết</a></li>
+                        <li><a href="#">Chính sách đổi trả bảo hành</a></li>
+                        <li><a href="#">Chính sách vận chuyển thanh toán</a></li>
+                        <li><a href="#">Chính sách bảo mật thông tin</a></li>
+                        <li><a href="#">Hướng dẫn mua hàng online</a></li>
+                        <li><a href="#">Câu hỏi thường gặp</a></li>
+                    </ul>
+                </div>
+
+                <!-- Column 4 -->
+                <div class="footer-column">
+                    <h4>Thông tin liên hệ</h4>
+                    <ul class="footer-contact">
+                        <li>
+                            <i class="fa-solid fa-location-dot"></i>
+                            <span>
+                                <strong>Văn phòng đại diện:</strong>
+                                Số 225 Hoàng Ngân, phường Trung Hòa, quận Cầu Giấy, Hà Nội
+                            </span>
+                        </li>
+                        <li>
+                            <i class="fa-solid fa-phone"></i>
+                            <span>
+                                <strong>Hotline miễn cước:</strong>
+                                1800.6464.90 (8h30 - 22h00)
+                            </span>
+                        </li>
+                        <li>
+                            <i class="fa-solid fa-envelope"></i>
+                            <span>
+                                <strong>Email liên hệ:</strong>
+                                lienhe@comem.vn
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Footer Bottom -->
+            <div class="footer-bottom">
+                <div class="copyright">
+                    &copy; 2026 Cỏ Mềm Lab. Tất cả các quyền được bảo lưu. Bản sao mô phỏng phục vụ tích hợp API.
+                </div>
+                <div class="footer-certs">
+                    <!-- Standard Vietnamese Gov certification badge template -->
+                    <a href="#" title="Đã đăng ký Bộ Công Thương" aria-label="Bộ Công Thương">
+                        <svg width="100" height="38" viewBox="0 0 100 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="100" height="38" rx="4" fill="#1b3a2f"/>
+                            <text x="50" y="16" font-family="sans-serif" font-size="8" fill="#ffffff" text-anchor="middle" font-weight="bold">ĐÃ ĐĂNG KÝ</text>
+                            <text x="50" y="28" font-family="sans-serif" font-size="9" fill="#00ff99" text-anchor="middle" font-weight="bold">BỘ CÔNG THƯƠNG</text>
+                        </svg>
+                    </a>
+                    
+                    <!-- Secure connection badge -->
+                    <svg width="80" height="38" viewBox="0 0 80 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="80" height="38" rx="4" fill="#2d4039"/>
+                        <circle cx="16" cy="19" r="6" fill="#00ff99"/>
+                        <text x="48" y="22" font-family="sans-serif" font-size="9" fill="#ffffff" text-anchor="middle" font-weight="bold">SSL SECURE</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- MOBILE DRAWER MENU -->
+    <div class="mobile-menu-overlay" id="mobile-menu-overlay-el"></div>
+    <div class="mobile-menu-drawer" id="mobile-menu-drawer-el">
+        <div class="mobile-drawer-header">
+            <div class="logo">
+                <svg width="120" height="32" viewBox="0 0 150 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <text x="0" y="28" font-family="'Montserrat', sans-serif" font-weight="700" font-size="24" fill="#005d37">CỎ MỀM</text>
+                </svg>
+            </div>
+            <button class="mobile-drawer-close" id="mobile-drawer-close-btn" aria-label="Đóng menu">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="mobile-drawer-body">
+            <!-- Simple Mobile Search -->
+            <div style="padding: 0 20px 20px;">
+                <form action="#" method="GET" style="position: relative;">
+                    <input type="text" class="search-bar" placeholder="Tìm sản phẩm..." style="background-color: var(--bg-secondary); padding: 8px 40px 8px 16px;">
+                    <button type="submit" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--primary);">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </button>
+                </form>
+            </div>
+            
+            <ul class="mobile-nav-list" id="mobile-navigation-menu">
+                <li><a href="#" class="mobile-nav-link active">Trang chủ</a></li>
+                <li><a href="#" class="mobile-nav-link">Sản phẩm mới</a></li>
+                <li><a href="#" class="mobile-nav-link">Chăm sóc da</a></li>
+                <li><a href="#" class="mobile-nav-link">Chăm sóc tóc</a></li>
+                <li><a href="#" class="mobile-nav-link">Trang điểm</a></li>
+                <li><a href="#" class="mobile-nav-link">Chăm sóc cơ thể</a></li>
+                <li><a href="#" class="mobile-nav-link">Combo Quà tặng</a></li>
+                <li><a href="#" class="mobile-nav-link">Về Cỏ Mềm</a></li>
+                <li><a href="#" class="mobile-nav-link">Hệ thống cửa hàng</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- MINI CART DRAWER -->
+    <div class="cart-drawer-overlay" id="cart-drawer-overlay-el"></div>
+    <div class="cart-drawer" id="cart-drawer-el">
+        <div class="cart-drawer-header">
+            <h3>Giỏ hàng của bạn (<span id="cart-drawer-count">0</span>)</h3>
+            <button class="cart-drawer-close" id="cart-drawer-close-btn" aria-label="Đóng giỏ hàng">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="cart-drawer-body" id="cart-drawer-items-container">
+            <!-- Will be populated dynamically by app.js -->
+            <!-- If empty, show this -->
+            <div class="cart-empty-message" id="cart-empty-msg">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shopping-bag">
+                    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+                    <line x1="3" y1="6" x2="21" y2="6"/>
+                    <path d="M16 10a4 4 0 0 1-8 0"/>
+                </svg>
+                <p style="margin-top: 16px; font-weight: 500;">Giỏ hàng của bạn đang trống</p>
+                <p style="font-size: 0.85rem; margin-top: 6px;">Hãy thêm sản phẩm lành tính của Cỏ Mềm nhé!</p>
+            </div>
+            
+            <!-- Items list wrapper (shown when items exist) -->
+            <div id="cart-items-wrapper" style="display: none;">
+                <!-- Cart items populate here -->
+            </div>
+        </div>
+        
+        <div class="cart-drawer-footer">
+            <div class="cart-total-row">
+                <span>Tổng tiền hàng:</span>
+                <span class="total-price" id="cart-drawer-total-price">0 đ</span>
+            </div>
+            <button class="btn btn-primary" id="checkout-button-el">Tiến hành đặt hàng</button>
+            <p style="font-size: 0.78rem; text-align: center; color: var(--text-secondary); margin-top: 12px;">
+                Đơn hàng trên 249k sẽ được tự động miễn phí vận chuyển
+            </p>
+        </div>
+    </div>
+
+    <!-- Main Logic Script -->
+    <script type="module" src="homepage-bridge.js"></script>
+    <script src="app.js"></script>
+
+    <div id="root"></div>
+
+    <!-- JS bundle -->
+    <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>

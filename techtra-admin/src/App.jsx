@@ -93,12 +93,16 @@ import Settings from "./components/Settings/Settings.jsx";
 import Dashboard from "./components/Dashboard/Dashboard.jsx";
 import AdminAccounts from "./components/AdminAccounts/AdminAccounts.jsx";
 import Reviews from "./components/Reviews/Reviews.jsx";
+import Login, { getAdminFromStorage, saveAdminToStorage } from "./components/Login/Login.jsx";
 
 // Key lưu trang đang mở vào localStorage, để reload (F5) vẫn giữ nguyên trang
 const CURRENT_PAGE_STORAGE_KEY = "app_current_page";
 const DEFAULT_PAGE = "dashboard";
 
 export default function App() {
+  // Admin đã đăng nhập hay chưa — null = chưa login
+  const [admin, setAdmin] = useState(() => getAdminFromStorage());
+
   // Trang mặc định khi mới mở web lên: 'all-products' (Tất cả sản phẩm).
   // Nếu trước đó đã lưu lại trang đang mở (localStorage), ưu tiên khôi phục lại trang đó.
   const [currentPage, setCurrentPage] = useState(() => {
@@ -182,6 +186,16 @@ export default function App() {
     }
   };
 
+  const handleLogout = () => {
+    saveAdminToStorage(null);
+    setAdmin(null);
+  };
+
+  // Chưa đăng nhập → hiện form login
+  if (!admin) {
+    return <Login onLoggedIn={setAdmin} />;
+  }
+
   return (
     <div className="app-layout" style={{ display: "flex", minHeight: "100vh", width: "100vw" }}>
 
@@ -189,6 +203,8 @@ export default function App() {
       <Sidebar
         currentActivePage={currentPage}
         onPageChange={setCurrentPage}
+        admin={admin}
+        onLogout={handleLogout}
       />
 
       {/* Vùng nội dung hiển thị Component bên phải */}

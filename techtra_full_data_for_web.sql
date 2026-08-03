@@ -1599,17 +1599,17 @@ comment on table site_settings is 'Cấu hình hệ thống key/value. Công t�
 
 -- Seed các key mặc định
 insert into site_settings (key, value, value_json, description) values
-  ('loyalty_enabled', 'false', null,
+  ('loyalty_enabled', 'true', null,
     'Bật/tắt chương trình khách thân thiết (true=hiện rank + auto-issue voucher)'),
 
   ('loyalty_tier_thresholds', null,
    '{
-      "bronze":   { "min_ltv": 0,       "voucher": null },
-      "silver":   { "min_ltv": 2000000, "voucher": { "type":"percent","value":5,  "min_order":500000, "max_discount":100000 } },
-      "gold":     { "min_ltv": 5000000, "voucher": { "type":"percent","value":10, "min_order":1000000,"max_discount":300000 } },
-      "platinum": { "min_ltv": 10000000,"voucher": { "type":"percent","value":15, "min_order":0,      "max_discount":500000 } }
+      "bronze":   { "min_ltv": 0,    "voucher": { "type":"percent","value":3,  "min_order":100000, "max_discount":30000 } },
+      "silver":   { "min_ltv": 1,    "voucher": { "type":"percent","value":5,  "min_order":200000, "max_discount":50000 } },
+      "gold":     { "min_ltv": 2000000, "voucher": { "type":"percent","value":10, "min_order":500000, "max_discount":150000 } },
+      "platinum": { "min_ltv": 5000000, "voucher": { "type":"percent","value":15, "min_order":0,      "max_discount":300000 } }
     }'::jsonb,
-    'Ngưỡng LTV cho từng hạng + quà tặng voucher khi đạt hạng'),
+    'Ngưỡng LTV cho từng hạng + quà tặng voucher khi đạt hạng. Bronze/Silver để KH mua 1 đơn là thân thiết.'),
 
   ('loyalty_only_done_orders', 'true', null,
     'Chỉ tính đơn status=done vào LTV (true). Nếu false: tính cả đơn confirmed/shipping.'),
@@ -2657,28 +2657,70 @@ on conflict (sku) do update set product_id = excluded.product_id, name = exclude
 
 -- Orders
 insert into orders (customer_id, customer_name, customer_phone, address, province, district, ward, total_price, shipping_fee, discount_amount, final_price, payment_method, payment_status, status, note)
-select c.id, c.name, c.phone, c.address, c.province, c.district, c.ward, 334000, 14000, 0, 348000, 'cod', 'pending', 'done', 'Giao giờ hành chính' from customers c where c.email = 'a.nguyen@demo.vn'
+select c.id, c.name, c.phone, c.address, c.province, c.district, c.ward, 334000, 14000, 0, 348000, 'cod', 'paid', 'done', 'Giao giờ hành chính' from customers c where c.email = 'a.nguyen@demo.vn'
 union all
-select c.id, c.name, c.phone, c.address, c.province, c.district, c.ward, 205000, 10000, 0, 215000, 'cod', 'pending', 'done', 'Gọi trước khi giao' from customers c where c.email = 'b.tran@demo.vn'
+select c.id, c.name, c.phone, c.address, c.province, c.district, c.ward, 205000, 10000, 0, 215000, 'cod', 'paid', 'done', 'Gọi trước khi giao' from customers c where c.email = 'b.tran@demo.vn'
+union all
+select c.id, c.name, c.phone, c.address, c.province, c.district, c.ward, 150000, 10000, 0, 160000, 'cod', 'paid', 'done', 'Giao nhanh' from customers c where c.email = 'c.le@demo.vn'
+union all
+select c.id, c.name, c.phone, c.address, c.province, c.district, c.ward, 2500000, 0, 0, 2500000, 'vnpay', 'paid', 'done', 'Đơn hàng lớn - Gold' from customers c where c.email = 'a.nguyen@demo.vn'
+union all
+select c.id, c.name, c.phone, c.address, c.province, c.district, c.ward, 5500000, 0, 0, 5500000, 'vnpay', 'paid', 'done', 'Đơn hàng lớn - Platinum' from customers c where c.email = 'b.tran@demo.vn'
+union all
+select c.id, c.name, c.phone, c.address, c.province, c.district, c.ward, 120000, 15000, 0, 135000, 'cod', 'paid', 'done', 'Đơn hàng nhỏ đầu tiên' from customers c where c.email = 'c.le@demo.vn'
+union all
+select c.id, c.name, c.phone, c.address, c.province, c.district, c.ward, 180000, 10000, 0, 190000, 'cod', 'pending', 'pending', 'Đơn đang xử lý - chưa hoàn thành' from customers c where c.email = 'a.nguyen@demo.vn'
+union all
+select c.id, c.name, c.phone, c.address, c.province, c.district, c.ward, 300000, 10000, 0, 310000, 'cod', 'pending', 'confirmed', 'Đơn đã xác nhận - chưa hoàn thành' from customers c where c.email = 'b.tran@demo.vn'
+union all
+select c.id, c.name, c.phone, c.address, c.province, c.district, c.ward, 90000, 10000, 0, 100000, 'cod', 'paid', 'cancelled', 'Đơn bị hủy - không tính LTV' from customers c where c.email = 'c.le@demo.vn'
 on conflict do nothing;
 
 -- Order items
 insert into order_items (order_id, product_id, product_name, product_sku, image_url, quantity, unit_price, discount, subtotal)
 select o.id, p.id, p.name, p.sku, p.image_url, 1, p.price, p.discount, p.final_price
 from orders o join customers c on c.id = o.customer_id join products p on p.slug = 'ca-phe-arabica-da-lat-500g'
-where c.email = 'a.nguyen@demo.vn'
+where c.email = 'a.nguyen@demo.vn' and o.status = 'done' and o.final_price = 348000
 union all
 select o.id, p.id, p.name, p.sku, p.image_url, 1, p.price, p.discount, p.final_price
 from orders o join customers c on c.id = o.customer_id join products p on p.slug = 'tra-gung-sa-am-ap-250g'
-where c.email = 'a.nguyen@demo.vn'
+where c.email = 'a.nguyen@demo.vn' and o.status = 'done' and o.final_price = 348000
 union all
 select o.id, p.id, p.name, p.sku, p.image_url, 1, p.price, p.discount, p.final_price
 from orders o join customers c on c.id = o.customer_id join products p on p.slug = 'tra-hoa-cuc-mat-ong-250g'
-where c.email = 'b.tran@demo.vn'
+where c.email = 'b.tran@demo.vn' and o.status = 'done' and o.final_price = 215000
 union all
 select o.id, p.id, p.name, p.sku, p.image_url, 1, p.price, p.discount, p.final_price
 from orders o join customers c on c.id = o.customer_id join products p on p.slug = 'ca-phe-robusta-buon-ma-thuot-500g'
-where c.email = 'b.tran@demo.vn'
+where c.email = 'b.tran@demo.vn' and o.status = 'done' and o.final_price = 215000
+union all
+select o.id, p.id, p.name, p.sku, p.image_url, 1, p.price, p.discount, p.final_price
+from orders o join customers c on c.id = o.customer_id join products p on p.slug = 'tra-hoa-cuc-mat-ong-250g'
+where c.email = 'c.le@demo.vn' and o.status = 'done' and o.final_price = 160000
+union all
+select o.id, p.id, p.name, p.sku, p.image_url, 10, p.price, p.discount, p.final_price * 10
+from orders o join customers c on c.id = o.customer_id join products p on p.slug = 'ca-phe-arabica-da-lat-500g'
+where c.email = 'a.nguyen@demo.vn' and o.status = 'done' and o.final_price = 2500000
+union all
+select o.id, p.id, p.name, p.sku, p.image_url, 20, p.price, p.discount, p.final_price * 20
+from orders o join customers c on c.id = o.customer_id join products p on p.slug = 'ca-phe-robusta-buon-ma-thuot-500g'
+where c.email = 'b.tran@demo.vn' and o.status = 'done' and o.final_price = 5500000
+union all
+select o.id, p.id, p.name, p.sku, p.image_url, 1, p.price, p.discount, p.final_price
+from orders o join customers c on c.id = o.customer_id join products p on p.slug = 'tra-gung-sa-am-ap-250g'
+where c.email = 'c.le@demo.vn' and o.status = 'done' and o.final_price = 135000
+union all
+select o.id, p.id, p.name, p.sku, p.image_url, 1, p.price, p.discount, p.final_price
+from orders o join customers c on c.id = o.customer_id join products p on p.slug = 'tra-hoa-cuc-mat-ong-250g'
+where c.email = 'a.nguyen@demo.vn' and o.status = 'pending' and o.final_price = 190000
+union all
+select o.id, p.id, p.name, p.sku, p.image_url, 2, p.price, p.discount, p.final_price * 2
+from orders o join customers c on c.id = o.customer_id join products p on p.slug = 'tra-hoa-cuc-mat-ong-250g'
+where c.email = 'b.tran@demo.vn' and o.status = 'confirmed' and o.final_price = 310000
+union all
+select o.id, p.id, p.name, p.sku, p.image_url, 1, p.price, p.discount, p.final_price
+from orders o join customers c on c.id = o.customer_id join products p on p.slug = 'tra-hoa-cuc-mat-ong-250g'
+where c.email = 'c.le@demo.vn' and o.status = 'cancelled' and o.final_price = 100000
 on conflict do nothing;
 
 -- Transactions
@@ -2697,12 +2739,12 @@ union all
 select p.id, 4, 'Robusta đậm đà, pha phin rất hợp.', 'Pham Van D', true from products p where p.slug = 'ca-phe-robusta-buon-ma-thuot-500g'
 on conflict do nothing;
 
--- Vouchers
+-- Public vouchers
 insert into customer_vouchers (customer_id, code, rank, discount_type, discount_value, min_order, max_discount, expires_at, is_public, is_active, note)
 values
   (null, 'WELCOME10', 'bronze', 'percent', 10, 200000, 50000, now() + interval '30 days', true, true, 'Voucher chào mừng'),
   (null, 'FLASH20', 'bronze', 'percent', 20, 500000, 100000, now() + interval '7 days', true, true, 'Voucher flash sale')
-on conflict do nothing;
+on conflict (code) do nothing;
 
 -- Upload groups
 CREATE UNIQUE INDEX IF NOT EXISTS upload_groups_slug_full_uidx ON upload_groups (slug);
@@ -2740,13 +2782,24 @@ update products set
 
 update product_groups set product_count = coalesce((select count(*) from products where group_id = product_groups.id and is_active = true and status = 'active'), 0);
 
-DO $$
+-- Refresh customer stats for all sample customers (counts LTV, orders, products)
+DO $refresh$
 DECLARE rec RECORD;
 BEGIN
   FOR rec IN SELECT id FROM customers LOOP
     PERFORM fn_refresh_customer_stats(rec.id);
   END LOOP;
-END $$;
+END $refresh$;
+
+-- Auto-issue loyalty vouchers for sample customers based on their refreshed LTV
+-- Bronze/Silver thresholds are now set low enough that any completed order qualifies.
+DO $loyalty$
+DECLARE rec RECORD;
+BEGIN
+  FOR rec IN SELECT id FROM customers LOOP
+    PERFORM fn_loyalty_issue_voucher(rec.id);
+  END LOOP;
+END $loyalty$;
 
 COMMIT;
 

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng ký - Techtra Shop</title>
+    <link rel="stylesheet" href="dangky.css">
+</head>
+<body>
+    <div class="register-container">
+        <div class="logo">
+            <img src="../Logo.png" alt="Techtra Shop Logo">
+        </div>
+        <h2>Đăng ký tài khoản</h2>
+        <form id="registerForm">
+            <div class="input-group">
+                <label for="fullname">Họ và tên</label>
+                <input type="text" id="fullname" name="fullname" placeholder="Nhập họ và tên (tùy chọn)">
+            </div>
+            <div class="input-group">
+                <label for="username">Tên đăng nhập</label>
+                <input type="text" id="username" name="username" required placeholder="Nhập tên đăng nhập">
+            </div>
+            <div class="input-group">
+                <label for="password">Mật khẩu</label>
+                <input type="password" id="password" name="password" required placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)">
+            </div>
+            <div class="input-group">
+                <label for="confirmPassword">Xác nhận mật khẩu</label>
+                <input type="password" id="confirmPassword" name="confirmPassword" required placeholder="Nhập lại mật khẩu">
+            </div>
+
+            <div class="input-group">
+                <label>Phương thức xác nhận mã</label>
+                <div class="method-options">
+                    <label class="method-option">
+                        <input type="radio" name="verifyMethod" value="zalo" checked>
+                        Zalo
+                    </label>
+                    <label class="method-option">
+                        <input type="radio" name="verifyMethod" value="email">
+                        Email
+                    </label>
+                </div>
+            </div>
+
+            <!-- Zalo section (hiển thị mặc định) -->
+            <div id="zaloSection" class="input-group">
+                <label for="phoneNumber">Số điện thoại Zalo</label>
+                <input type="tel" id="phoneNumber" name="phoneNumber" required placeholder="Nhập số điện thoại Zalo">
+            </div>
+
+            <!-- Email section (ẩn mặc định) -->
+            <div id="emailSection" class="input-group" style="display:none;">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" placeholder="Nhập email">
+            </div>
+
+            <button type="button" id="sendCodeBtn" class="btn-register">Gửi mã xác nhận</button>
+
+            <!-- Verification section (hidden initially) -->
+            <div id="verifySection">
+                <div class="input-group">
+                    <label for="verifyCode">Mã xác nhận (6 chữ số)</label>
+                    <input type="text" id="verifyCode" name="verifyCode" maxlength="6" pattern="[0-9]*"
+                           inputmode="numeric" placeholder="Nhập mã đã gửi">
+                </div>
+                <button type="button" id="verifyBtn" class="btn-register">Xác nhận &amp; Đăng ký</button>
+            </div>
+
+            <p class="login-link">
+                Đã có tài khoản? <a href="/DangNhap/dangnhap.html">Đăng nhập ngay</a>
+            </p>
+        </form>
+    </div>
+    <script src="sendCode.js"></script>
+    <script src="dangky.js"></script>
+</body>
+</html>
