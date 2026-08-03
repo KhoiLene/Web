@@ -1468,9 +1468,7 @@ import { request } from "../api-service/api.js";
   function openBankModal() {
     const tempOrderId = generateTempOrderId();
     loadBankConfig().then(async (cfg) => {
-      $bankName.textContent = cfg.bank_name || "Chưa cấu hình";
-      $bankAccountNumber.textContent = cfg.bank_account_number || "—";
-      $bankAccountHolder.textContent = cfg.bank_account_holder || "—";
+      // Không hiển thị thông tin tài khoản ngân hàng — chỉ VNPay QR
       const totals = calcTotals(cart, currentVoucher);
       $bankAmount.textContent = formatVND(totals.final);
       $bankTransferContent.textContent = `Thanh toan don hang Techtra ${tempOrderId}`;
@@ -1588,11 +1586,11 @@ import { request } from "../api-service/api.js";
         final_price:    totals.final,
         payment_method: paymentMethod,
         voucher_code:   voucherCode,
-        // Status mở rộng (2026-08): CK → awaiting_payment, COD → pending
-        // Backend sẽ tự cập nhật status thành payment_confirmed khi verify CK.
-        status: paymentMethod === "bank_transfer" ? "awaiting_payment" : "pending",
+        // Status mở rộng (2026-08): VNPay (vnpay/bank_transfer) → awaiting_payment, COD → pending.
+        // Backend poller sẽ auto-verify khi nhận IPN từ VNPay hoặc match transaction trong DB.
+        status: (paymentMethod === "vnpay" || paymentMethod === "bank_transfer") ? "awaiting_payment" : "pending",
         payment_status: "pending",
-        awaiting_payment_since: paymentMethod === "bank_transfer" ? new Date().toISOString() : null,
+        awaiting_payment_since: (paymentMethod === "vnpay" || paymentMethod === "bank_transfer") ? new Date().toISOString() : null,
       };
 
       // Khi DB chưa khớp schema, insert sẽ fail; nhưng ta vẫn cố gắng theo naming phổ biến.

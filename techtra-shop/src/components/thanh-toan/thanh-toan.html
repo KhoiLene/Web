@@ -140,7 +140,7 @@
                   </label>
                   <label class="radio">
                     <input type="radio" name="paymentMethod" value="vnpay" />
-                    <span>VNPay / Chuyển khoản ngân hàng</span>
+                    <span>Thanh toán qua VNPay (QR code)</span>
                   </label>
                 </div>
               </div>
@@ -225,15 +225,15 @@
 
     <div id="footer-placeholder"></div>
 
-    <!-- Modal chuyển khoản ngân hàng -->
+    <!-- Modal VNPay — chỉ hiển thị QR, không có thông tin tài khoản ngân hàng -->
     <div id="bankTransferModal" class="bank-modal" style="display:none" aria-modal="true" role="dialog">
       <div class="bank-modal__overlay"></div>
       <div class="bank-modal__content">
         <button type="button" class="bank-modal__close" id="bankModalClose" aria-label="Đóng">×</button>
-        <h2 class="bank-modal__title">Chuyển khoản ngân hàng</h2>
-        <p class="bank-modal__desc">Vui lòng chuyển khoản theo thông tin dưới đây để hoàn tất đơn hàng.</p>
+        <h2 class="bank-modal__title">Thanh toán qua VNPay</h2>
+        <p class="bank-modal__desc">Quét mã QR bên dưới bằng app ngân hàng hoặc ví điện tử để thanh toán.</p>
 
-        <div class="bank-modal__info">
+        <div class="bank-modal__info" style="display:none">
           <div class="bank-modal__row"><span>Ngân hàng</span><strong id="bankName">—</strong></div>
           <div class="bank-modal__row"><span>Số tài khoản</span><strong id="bankAccountNumber">—</strong></div>
           <div class="bank-modal__row"><span>Chủ tài khoản</span><strong id="bankAccountHolder">—</strong></div>
@@ -242,7 +242,6 @@
         </div>
 
         <div class="bank-modal__pay-options">
-          <p>Hoặc thanh toán qua VNPay:</p>
           <div id="vnpayQrContainer" class="bank-modal__qr" style="display:none">
             <a id="vnpayPayLink" href="#" target="_blank" rel="noreferrer" class="btn btn-primary" style="display:inline-block;margin-bottom:10px">
               <i class="fas fa-credit-card"></i> Thanh toán VNPay
@@ -258,7 +257,7 @@
 
         <div class="bank-modal__actions">
           <button type="button" class="btn btn-ghost" id="bankModalCancel">Đóng</button>
-          <button type="button" class="btn btn-primary" id="bankModalContinue">Tôi đã chuyển khoản</button>
+          <button type="button" class="btn btn-primary" id="bankModalContinue">Tôi đã thanh toán</button>
         </div>
 
         <div id="bankModalMessage" class="bank-modal__message" aria-live="polite"></div>

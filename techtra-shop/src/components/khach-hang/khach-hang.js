@@ -53,20 +53,35 @@ import { customersApi, request } from "../api-service/api.js";
 
   const COOLDOWN_SECS = 60;
 
-  // Helpers: bật/tắt chế độ chỉnh sửa cho từng field
-  function enableEdit(inputId) {
+  // Click trực tiếp vào input → vào chế độ chỉnh sửa (xoá readonly, select-all).
+  // Khi blur → tự lưu field đó (nếu đã verify phone/email).
+  function enableEdit(inputId, selectAll = true) {
     const input = document.getElementById(inputId);
     if (!input) return;
     input.removeAttribute("readonly");
-    input.value = "";
-    input.focus();
+    if (selectAll) {
+      // Select-all để user gõ đè nhanh; nếu trống thì chỉ focus.
+      const v = input.value || "";
+      input.focus();
+      try { input.setSelectionRange(0, v.length); } catch (_) { /* type không hỗ trợ */ }
+    }
     if (inputId === "customerPhone" || inputId === "customerEmail") {
       const field = inputId === "customerPhone" ? "phone" : "email";
-      verification[field].verified = false;
-      verification[field].pendingValue = "";
+      // Nếu user click vào field đã có value khác DB → reset verified
+      const current = String(input.value || "").trim();
+      if (current !== original[field]) {
+        verification[field].verified = false;
+        verification[field].pendingValue = current;
+      }
       const sendBtn = document.getElementById(inputId === "customerPhone" ? "sendPhoneOtpBtn" : "sendEmailOtpBtn");
       if (sendBtn) sendBtn.hidden = false;
       updateUiForVerification();
+    }
+    // Đổi nhãn nút "Đổi" → "Hủy" để user có exit có chủ đích
+    const btn = document.querySelector(`.btn-edit[data-target="${inputId}"]`);
+    if (btn) {
+      btn.textContent = "Hủy";
+      btn.classList.add("btn-edit-cancel");
     }
   }
 
@@ -74,7 +89,11 @@ import { customersApi, request } from "../api-service/api.js";
     const input = document.getElementById(inputId);
     if (!input) return;
     input.setAttribute("readonly", "true");
-    input.value = original[inputId === "customerName" ? "name" : inputId === "customerPhone" ? "phone" : inputId === "customerEmail" ? "email" : "address"] || "";
+    const key = inputId === "customerName" ? "name"
+      : inputId === "customerPhone" ? "phone"
+      : inputId === "customerEmail" ? "email"
+      : "address";
+    input.value = original[key] || "";
     if (inputId === "customerPhone" || inputId === "customerEmail") {
       const field = inputId === "customerPhone" ? "phone" : "email";
       const sendBtn = document.getElementById(inputId === "customerPhone" ? "sendPhoneOtpBtn" : "sendEmailOtpBtn");
@@ -87,18 +106,26 @@ import { customersApi, request } from "../api-service/api.js";
     }
   }
 
+  // Click trực tiếp vào input (readonly) → vào edit mode (clear-and-type).
+  [$name, $phone, $email, $address].forEach((inp) => {
+    inp.addEventListener("click", () => {
+      if (inp.hasAttribute("readonly")) {
+        enableEdit(inp.id, true);
+      }
+    });
+  });
+
+  // Nút "Đổi" / "Hủy" vẫn giữ như phương án dự phòng (accessibility).
   document.querySelectorAll(".btn-edit").forEach((btn) => {
     btn.addEventListener("click", () => {
       const target = btn.getAttribute("data-target");
       if (!target) return;
-      if (btn.textContent === "Đổi") {
-        enableEdit(target);
-        btn.textContent = "Hủy";
-        btn.classList.add("btn-edit-cancel");
-      } else {
+      if (btn.classList.contains("btn-edit-cancel")) {
         revertToOriginal(target);
         btn.textContent = "Đổi";
         btn.classList.remove("btn-edit-cancel");
+      } else {
+        enableEdit(target, true);
       }
     });
   });
@@ -138,23 +165,37 @@ import { customersApi, request } from "../api-service/api.js";
   async function loadCustomer() {
     if (!customerId) return;
 
-    const r = await request(
-      "GET",
-      `/db/customers?select=id,name,phone,email,address&id=eq.${customerId}&limit=1`
-    );
-    const data = (r.data || [])[0];
-    if (!data) return;
+    // Fallback 1: đọc từ techtra_user localStorage (luôn có sau khi đăng nhập).
+    let cachedUser = null;
+    try { cachedUser = JSON.parse(localStorage.getItem("techtra_user") || "null"); } catch (_) {}
 
-    $name.value = data.name || "";
-    $phone.value = data.phone || "";
-    $email.value = data.email || "";
-    $address.value = data.address || "";
+    let data = null;
+    try {
+      const r = await request(
+        "GET",
+        `/db/customers?select=id,name,phone,email,address&id=eq.${customerId}&limit=1`
+      );
+      data = (r.data || [])[0];
+    } catch (err) {
+      console.warn("[loadCustomer] DB fetch failed, dùng cache localStorage", err);
+    }
+
+    // Ưu tiên data từ DB; nếu thiếu trường nào thì lấy từ cachedUser.
+    const name    = (data?.name    ?? cachedUser?.name  ?? "") || "";
+    const phone   = (data?.phone   ?? cachedUser?.phone ?? "") || "";
+    const email   = (data?.email   ?? cachedUser?.email ?? "") || "";
+    const address = (data?.address ?? "") || "";
+
+    $name.value = name;
+    $phone.value = phone;
+    $email.value = email;
+    $address.value = address;
 
     // Lưu giá trị ban đầu để so sánh isDirty
-    original.name = String(data.name || "").trim();
-    original.phone = String(data.phone || "").trim();
-    original.email = String(data.email || "").trim();
-    original.address = String(data.address || "").trim();
+    original.name = String(name).trim();
+    original.phone = String(phone).trim();
+    original.email = String(email).trim();
+    original.address = String(address).trim();
 
     // KH đã có phone/email trong DB → coi như verified (đã xác nhận lúc đăng ký)
     verification.phone.verified = !!original.phone;
@@ -558,6 +599,42 @@ import { customersApi, request } from "../api-service/api.js";
 
   $form?.addEventListener("submit", saveProfile);
   $logoutBtn?.addEventListener("click", logout);
+
+  // Auto-save đơn giản: name/address (không cần OTP) → lưu ngay khi blur
+  // nếu giá trị thay đổi so với ban đầu. Phone/email vẫn phải bấm "Lưu".
+  function autoSaveSimpleField(field) {
+    if (!customerId) return;
+    const inp = field === "name" ? $name : $address;
+    const v = inp.value.trim();
+    if (v === (original[field] || "")) return;
+    request("PATCH", "/db/customers", {
+      set: { [field]: v || null },
+      where: { id: customerId },
+    })
+      .then(() => {
+        original[field] = v;
+        inp.setAttribute("readonly", "true");
+        const btn = document.querySelector(`.btn-edit[data-target="customer${field[0].toUpperCase() + field.slice(1)}"]`);
+        if (btn) { btn.textContent = "Đổi"; btn.classList.remove("btn-edit-cancel"); }
+        flashMsg("Đã lưu.");
+      })
+      .catch((err) => {
+        console.error(`[autoSave ${field}]`, err);
+        flashMsg(`Lỗi: ${err.message}`, true);
+        // Revert
+        inp.value = original[field] || "";
+      });
+  }
+  function flashMsg(text, isError = false) {
+    $msg.textContent = text;
+    $msg.style.color = isError ? "#dc2626" : "#16a34a";
+    setTimeout(() => {
+      $msg.textContent = "";
+      $msg.style.color = "";
+    }, 1500);
+  }
+  $name?.addEventListener("blur", () => autoSaveSimpleField("name"));
+  $address?.addEventListener("blur", () => autoSaveSimpleField("address"));
 
   document.addEventListener("DOMContentLoaded", async () => {
     if (!customerId) {

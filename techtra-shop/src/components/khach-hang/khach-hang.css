@@ -18,6 +18,8 @@ body{background:linear-gradient(180deg,#0b1220,#070b14);color:var(--text);font-f
 .btn-danger{border-color:#ef4444;color:#ef4444}
 .btn-danger:hover{background:rgba(239,68,68,.08)}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-hint{margin:0 0 12px;color:#000000;font-size:13px;display:flex;align-items:center;gap:8px;background:rgba(106,17,203,.08);border:1px solid rgba(106,17,203,.18);padding:8px 12px;border-radius:10px}
+.form-hint i{color:var(--primary)}
 .field{display:flex;flex-direction:column;gap:8px}
 .field--full{grid-column:1 / -1}
 label{color:#000000;font-weight:700;font-size:13px}
@@ -41,7 +43,9 @@ input{padding:10px 12px;border-radius:12px;border:1px solid var(--border);backgr
 @media (max-width:900px){.customer-layout{grid-template-columns:1fr}}
 .edit-row{display:flex;gap:8px;align-items:center}
 .edit-row input{flex:1}
-input[readonly]{background:rgba(255,255,255,.02);color:#000000;cursor:default}
+input[readonly]{background:rgba(255,255,255,.02);color:#000000;cursor:pointer}
+input[readonly]:hover{border-color:rgba(106,17,203,.4);background:rgba(255,255,255,.04)}
+input[readonly]:focus{outline:2px solid var(--primary);outline-offset:1px}
 /* OTP */
 .otp-row{display:flex;gap:8px;align-items:center}
 .otp-row input{flex:1}
