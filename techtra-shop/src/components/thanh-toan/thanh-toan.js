@@ -767,6 +767,7 @@ import { request } from "../api-service/api.js";
 (function () {
   const CART_KEY = "techtra_cart";
   const BUY_NOW_KEY = "techtra_buynow";
+  let lastOrderId = null;  // ID đơn vừa tạo — dùng cho "Tôi đã CK" claim
 
   const SHIPPING_FREE_THRESHOLD = 500000;
   const SHIPPING_DEFAULT_FEE = 20000;
@@ -1587,8 +1588,11 @@ import { request } from "../api-service/api.js";
         final_price:    totals.final,
         payment_method: paymentMethod,
         voucher_code:   voucherCode,
-        // status lowercase để khớp DB default + admin filter "Chờ xác nhận"
-        status: "pending",
+        // Status mở rộng (2026-08): CK → awaiting_payment, COD → pending
+        // Backend sẽ tự cập nhật status thành payment_confirmed khi verify CK.
+        status: paymentMethod === "bank_transfer" ? "awaiting_payment" : "pending",
+        payment_status: "pending",
+        awaiting_payment_since: paymentMethod === "bank_transfer" ? new Date().toISOString() : null,
       };
 
       // Khi DB chưa khớp schema, insert sẽ fail; nhưng ta vẫn cố gắng theo naming phổ biến.
@@ -1597,6 +1601,7 @@ import { request } from "../api-service/api.js";
 
       const orderId = orderData?.id;
       const orderCode = orderData?.order_code || orderData?.code || orderData?.id;
+      lastOrderId = orderId;  // Lưu lại để dùng cho "Tôi đã CK" claim
 
       if (!orderId) throw new Error("Không lấy được id đơn hàng.");
 
@@ -1679,7 +1684,15 @@ import { request } from "../api-service/api.js";
   // Bank modal events
   $bankModalClose?.addEventListener("click", closeBankModal);
   $bankModalCancel?.addEventListener("click", closeBankModal);
-  $bankModalContinue?.addEventListener("click", () => {
+  $bankModalContinue?.addEventListener("click", async () => {
+    // User claim đã CK → báo admin verify
+    if (lastOrderId) {
+      try {
+        await request("POST", `/orders/${lastOrderId}/claim-paid`, {});
+      } catch (e) {
+        console.warn('[thanh-toan] claim-paid failed:', e.message);
+      }
+    }
     closeBankModal();
     setCurrentStep(3);
     renderConfirm();

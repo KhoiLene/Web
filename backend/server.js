@@ -11,6 +11,8 @@ const emailService = require('./services/email.js');
 const zaloService = require('./services/zalo.js');
 const otpService = require('./services/otpService.js');
 const vnpayService = require('./services/vnpay.js');
+const notificationsService = require('./services/notifications.js');
+const paymentVerifyService = require('./services/paymentVerify.js');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -296,6 +298,28 @@ app.patch('/api/orders/:id', async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    // ─── Auto-notify khi đổi trạng thái đơn ───────────────────────────
+    // Map status mới → event template (email + zalo).
+    // Bỏ qua nếu status không đổi.
+    if (oldStatus !== newStatus) {
+      const eventMap = {
+        confirmed: 'order_confirmed',
+        awaiting_pickup: 'order_confirmed',
+        shipping: 'order_shipping',
+        delivered: 'order_delivered',
+        done: 'order_delivered',
+        cancelled: 'order_cancelled',
+        payment_confirmed: 'payment_received',
+      };
+      const event = eventMap[newStatus];
+      if (event) {
+        // Fire-and-forget — không block response, lỗi log ra console
+        notificationsService.notifyOrderStatusChange(r.rows[0], event)
+          .catch((err) => console.error('[orders patch] notify failed:', err.message));
+      }
+    }
+
     return res.json({ success: true, data: r.rows[0] });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
@@ -958,6 +982,189 @@ app.get('/api/payment/vnpay/return', async (req, res) => {
     return res.status(500).json({ success: false, error: error.message || 'Lỗi xác thực VNPay' });
   }
 });
+
+// VNPay IPN (Instant Payment Notification) — VNPay gọi server-to-server.
+// Phải trả { RspCode, Message } nhanh. Xử lý async + idempotent.
+app.post('/api/payment/vnpay/ipn', async (req, res) => {
+  try {
+    const verify = await vnpayService.verifyReturnUrl(req.query || {});
+    if (!verify.isValid) {
+      console.warn('[vnpay/ipn] invalid signature');
+      return res.json({ RspCode: '97', Message: 'Invalid signature' });
+    }
+
+    // Ghi webhook_events (dedupe theo source + event_id)
+    const ev = await paymentVerifyService.recordWebhookEvent({
+      source: 'vnpay',
+      event_id: verify.orderId,
+      order_id: null, // sẽ resolve trong verifyOrderPayment
+      raw_payload: { ...req.query, _verify: verify },
+    });
+
+    if (!ev.inserted) {
+      // Đã xử lý lần trước — trả success để VNPay không retry nữa
+      return res.json({ RspCode: '00', Message: 'Already processed' });
+    }
+
+    // Cố gắng verify theo order_id từ event (có thể là order_code, id, v.v.)
+    // Tìm order khớp event_id
+    const orderId = await resolveOrderIdFromEvent(verify.orderId, req.query);
+    if (orderId) {
+      const v = await paymentVerifyService.verifyOrderPayment(orderId);
+      if (v.verified) {
+        // Update order_id vào webhook_events để audit
+        try {
+          await pool.query(
+            `UPDATE webhook_events SET order_id = $1, processed = TRUE, processed_at = NOW() WHERE id = $2`,
+            [orderId, ev.id]
+          );
+        } catch (_) { /* không block */ }
+      }
+    }
+    return res.json({ RspCode: '00', Message: 'Success' });
+  } catch (err) {
+    console.error('[vnpay/ipn] error:', err.message);
+    return res.json({ RspCode: '99', Message: err.message });
+  }
+});
+
+async function resolveOrderIdFromEvent(eventId, payload) {
+  if (!eventId) return null;
+  // Ưu tiên match theo order_code
+  const byCode = await pool.query(
+    `SELECT id FROM orders WHERE order_code = $1 LIMIT 1`,
+    [String(eventId)]
+  );
+  if (byCode.rowCount) return byCode.rows[0].id;
+  // Match theo id (numeric)
+  const numericId = parseInt(String(eventId).replace(/\D/g, ''), 10);
+  if (!isNaN(numericId) && numericId > 0) {
+    const byId = await pool.query(`SELECT id FROM orders WHERE id = $1 LIMIT 1`, [numericId]);
+    if (byId.rowCount) return byId.rows[0].id;
+  }
+  // Match theo payload.order_code / payload.order_id (nếu có)
+  if (payload?.order_code) {
+    const c2 = await pool.query(`SELECT id FROM orders WHERE order_code = $1 LIMIT 1`, [payload.order_code]);
+    if (c2.rowCount) return c2.rows[0].id;
+  }
+  if (payload?.order_id) {
+    const c3 = await pool.query(`SELECT id FROM orders WHERE id = $1 LIMIT 1`, [parseInt(payload.order_id, 10)]);
+    if (c3.rowCount) return c3.rows[0].id;
+  }
+  return null;
+}
+
+// Admin manual verify payment
+app.post('/api/orders/:id/verify-payment', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+  try {
+    const r = await pool.query(
+      `UPDATE orders
+       SET payment_status = 'paid',
+           status = 'payment_confirmed',
+           payment_confirmed_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $1 AND status = 'awaiting_payment'
+       RETURNING *`,
+      [id]
+    );
+    if (!r.rowCount) {
+      return res.status(400).json({
+        success: false,
+        error: 'Đơn không ở trạng thái "Chờ CK" hoặc không tồn tại',
+      });
+    }
+    // Notify (fire-and-forget)
+    notificationsService
+      .notifyOrderStatusChange(r.rows[0], 'payment_received')
+      .catch((err) => console.error('[verify-payment] notify failed:', err.message));
+    return res.json({ success: true, data: r.rows[0] });
+  } catch (err) {
+    console.error('[verify-payment]', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// User (khách) báo đã CK — chỉ ghi log + payment_reference, KHÔNG auto-verify.
+// Admin sẽ kiểm tra giao dịch thật rồi bấm "Xác nhận đã nhận tiền".
+app.post('/api/orders/:id/claim-paid', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+  try {
+    const r = await pool.query(
+      `UPDATE orders
+       SET payment_reference = COALESCE(NULLIF(payment_reference, ''), 'user_claimed'),
+           note = CASE WHEN note LIKE '%[user_claimed]%' THEN note
+                       ELSE COALESCE(note || E'\\n', '') || '[user_claimed] Khách báo đã CK lúc ' || NOW()::text
+                  END,
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, order_code, payment_reference, note`,
+      [id]
+    );
+    if (!r.rowCount) {
+      return res.status(404).json({ success: false, error: 'Đơn không tồn tại' });
+    }
+    return res.json({ success: true, data: r.rows[0] });
+  } catch (err) {
+    console.error('[claim-paid]', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Lấy notification log cho 1 đơn (admin)
+app.get('/api/orders/:id/notifications', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+  try {
+    const r = await pool.query(
+      `SELECT id, channel, template, recipient, status, error_message, sent_at, created_at
+       FROM notification_log
+       WHERE order_id = $1
+       ORDER BY created_at DESC
+       LIMIT 100`,
+      [id]
+    );
+    return res.json({ success: true, data: r.rows });
+  } catch (err) {
+    console.error('[orders/:id/notifications]', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Retry tất cả notification failed trong 7 ngày gần nhất
+app.post('/api/notifications/retry', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.body?.limit || 100, 10), 500);
+    const result = await notificationsService.retryFailed(limit);
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    console.error('[notifications/retry]', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Cron poller: tự động verify các đơn awaiting_payment mỗi 60s ───
+const POLLER_ENABLED = String(process.env.PAYMENT_POLLER_ENABLED || 'true').toLowerCase() !== 'false';
+const POLLER_INTERVAL_MS = parseInt(process.env.PAYMENT_POLLER_INTERVAL_MS || '60000', 10);
+
+if (POLLER_ENABLED) {
+  const tick = async () => {
+    try {
+      const r = await paymentVerifyService.pollAwaitingPayments(50);
+      if (r.verified > 0) {
+        console.log(`[payment poller] verified ${r.verified}/${r.scanned} orders`);
+      }
+    } catch (e) {
+      console.warn('[payment poller] error:', e.message);
+    }
+  };
+  // Chạy ngay 1 lần sau 30s khởi động, rồi lặp lại
+  setTimeout(tick, 30 * 1000);
+  setInterval(tick, POLLER_INTERVAL_MS);
+  console.log(`[payment poller] enabled, interval=${POLLER_INTERVAL_MS}ms`);
+}
 
 // Register
 app.post('/api/auth/register', async (req, res) => {

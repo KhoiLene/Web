@@ -1,7 +1,6 @@
 // =====================================================================
 // AllOrders.jsx — Trang "Tất cả đơn hàng"
-// Hiển thị toàn bộ đơn + 5 tab trạng thái (pending/confirmed/shipping/done/cancelled)
-// Có chọn nhiều + bulk "Xác nhận & In phiếu" + "Tạo vận đơn J&T"
+// Mở rộng (2026-08): thêm tab cho flow CK + giao hàng giống thực tế
 // =====================================================================
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -12,12 +11,16 @@ import { printOrdersAsPDF } from "./printOrder";
 import { createJTOrder } from "./jtHelpers";
 
 const FILTERS = [
-  { key: "all",       label: "Tất cả",         icon: "fa-list",          status: null },
-  { key: "pending",   label: "Chờ xác nhận",   icon: "fa-clock",         status: "pending" },
-  { key: "confirmed", label: "Đã xác nhận",    icon: "fa-check",         status: "confirmed" },
-  { key: "shipping",  label: "Đang giao",      icon: "fa-truck",         status: "shipping" },
-  { key: "done",      label: "Hoàn tất",       icon: "fa-circle-check",  status: "done" },
-  { key: "cancelled", label: "Đã huỷ",         icon: "fa-ban",           status: "cancelled" },
+  { key: "all",               label: "Tất cả",          icon: "fa-list",                  status: null },
+  { key: "awaiting_payment",  label: "Chờ CK",          icon: "fa-hourglass-half",        status: "awaiting_payment" },
+  { key: "payment_confirmed", label: "Đã nhận tiền",     icon: "fa-money-bill",            status: "payment_confirmed" },
+  { key: "pending",           label: "Chờ xác nhận",    icon: "fa-clock",                 status: "pending" },
+  { key: "confirmed",         label: "Đã xác nhận",     icon: "fa-check",                 status: "confirmed" },
+  { key: "awaiting_pickup",   label: "Chờ lấy hàng",     icon: "fa-box",                   status: "awaiting_pickup" },
+  { key: "shipping",          label: "Đang giao",       icon: "fa-truck",                 status: "shipping" },
+  { key: "delivered",         label: "Đã giao",         icon: "fa-house-circle-check",    status: "delivered" },
+  { key: "done",              label: "Hoàn tất",        icon: "fa-circle-check",          status: "done" },
+  { key: "cancelled",         label: "Đã huỷ",          icon: "fa-ban",                   status: "cancelled" },
   { key: "deleted_before_ship", label: "Xóa trước khi giao", icon: "fa-truck-arrow-right", status: "deleted_before_ship" },
 ];
 

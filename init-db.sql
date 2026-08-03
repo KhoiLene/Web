@@ -1223,6 +1223,20 @@
 -- =============================================================
 create extension if not exists "pgcrypto";
 
+-- Tạo các role giả để tránh lỗi nếu script init chạy trên postgres thường (không phải Supabase)
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'anon') then
+    create role anon nologin;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+    create role authenticated nologin;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'service_role') then
+    create role service_role nologin;
+  end if;
+end$$;
+
 grant usage on schema public to anon, authenticated, service_role;
 grant all privileges on all tables    in schema public to anon, authenticated, service_role;
 grant all privileges on all sequences in schema public to anon, authenticated, service_role;
@@ -2403,6 +2417,67 @@ from (values
 ) as v(name, slug, description, icon, sort_order)
 cross join lateral (select id from news_categories where slug = 'cham-soc-co-the' limit 1) as p
 where not exists (select 1 from news_categories nc where nc.slug = v.slug);
+
+
+-- =============================================================
+-- §22.5  Mở rộng orders + notification + webhook (2026-08)
+-- =============================================================
+-- Mở rộng orders phục vụ flow thanh toán CK + giao hàng giống thực tế
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS awaiting_payment_since TIMESTAMP;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_confirmed_at  TIMESTAMP;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_reference     VARCHAR(100);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_proof_url     TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipped_at            TIMESTAMP;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at          TIMESTAMP;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS notify_email_status   VARCHAR(20) DEFAULT 'pending';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS notify_zalo_status    VARCHAR(20) DEFAULT 'pending';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS notify_last_error     TEXT;
+
+COMMENT ON COLUMN orders.status IS 'pending/confirmed/awaiting_pickup/shipping/done/delivered/cancelled/awaiting_payment/payment_confirmed';
+COMMENT ON COLUMN orders.notify_email_status IS 'pending/sent/failed — trạng thái gửi email thông báo';
+COMMENT ON COLUMN orders.notify_zalo_status  IS 'pending/sent/failed — trạng thái gửi Zalo thông báo';
+
+CREATE INDEX IF NOT EXISTS idx_orders_awaiting_payment
+  ON orders(status, awaiting_payment_since)
+  WHERE status = 'awaiting_payment';
+
+-- Mở rộng transactions để hỗ trợ auto-verify CK (status/bank_ref/content/paid_at)
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS status    VARCHAR(20) DEFAULT 'success';
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS bank_ref  VARCHAR(100);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS content   VARCHAR(255);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS paid_at   TIMESTAMP;
+CREATE INDEX IF NOT EXISTS idx_transactions_order_status ON transactions(order_id, status);
+
+-- Bảng notification_log: track từng lần gửi email/zalo (audit + retry)
+CREATE TABLE IF NOT EXISTS notification_log (
+  id            SERIAL PRIMARY KEY,
+  order_id      INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+  channel       VARCHAR(20)  NOT NULL,            -- 'email' | 'zalo'
+  template      VARCHAR(50)  NOT NULL,            -- 'order_created' | 'order_confirmed' | 'order_shipping' | 'order_delivered' | 'order_cancelled' | 'payment_received'
+  recipient     VARCHAR(255) NOT NULL,            -- email hoặc SĐT
+  status        VARCHAR(20)  DEFAULT 'pending',   -- pending/sent/failed
+  error_message TEXT,
+  payload       JSONB,
+  created_at    TIMESTAMP    DEFAULT NOW(),
+  sent_at       TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_notification_log_order       ON notification_log(order_id);
+CREATE INDEX IF NOT EXISTS idx_notification_log_failed_retry ON notification_log(status, created_at) WHERE status = 'failed';
+
+-- Bảng webhook_events: log IPN VNPay + các webhook ngân hàng (idempotent retry)
+CREATE TABLE IF NOT EXISTS webhook_events (
+  id            SERIAL PRIMARY KEY,
+  source        VARCHAR(30) NOT NULL,             -- 'vnpay' | 'sepay' | 'mbbank' | ...
+  event_id      VARCHAR(100),                     -- txnRef hoặc transaction_id
+  order_id      INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+  raw_payload   JSONB,
+  processed     BOOLEAN DEFAULT FALSE,
+  received_at   TIMESTAMP DEFAULT NOW(),
+  processed_at  TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_source ON webhook_events(source, event_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_unprocessed
+  ON webhook_events(processed) WHERE processed = FALSE;
 
 
 -- =============================================================

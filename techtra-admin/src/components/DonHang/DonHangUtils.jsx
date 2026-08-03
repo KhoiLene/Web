@@ -29,19 +29,46 @@ export const fmtDate = (iso) => {
 };
 
 // ─── Map status → label + màu ────────────────────────────────────────
+// Mở rộng cho flow CK + giao hàng giống thực tế (2026-08)
 export const STATUS_META = {
-  pending:               { label: "Chờ xác nhận", color: "#a16207", bg: "#fef3c7" },
-  confirmed:             { label: "Đã xác nhận",  color: "#1d4ed8", bg: "#dbeafe" },
-  shipping:              { label: "Đang giao",    color: "#7c3aed", bg: "#ede9fe" },
-  done:                  { label: "Hoàn tất",     color: "#15803d", bg: "#dcfce7" },
-  cancelled:             { label: "Đã huỷ",       color: "#b91c1c", bg: "#fee2e2" },
+  pending:               { label: "Chờ xác nhận",    color: "#a16207", bg: "#fef3c7" },
+  awaiting_payment:      { label: "Chờ CK",           color: "#c2410c", bg: "#ffedd5" },
+  payment_confirmed:     { label: "Đã nhận tiền",     color: "#0e7490", bg: "#cffafe" },
+  confirmed:             { label: "Đã xác nhận",     color: "#1d4ed8", bg: "#dbeafe" },
+  awaiting_pickup:       { label: "Chờ lấy hàng",     color: "#0369a1", bg: "#e0f2fe" },
+  shipping:              { label: "Đang giao",       color: "#7c3aed", bg: "#ede9fe" },
+  done:                  { label: "Hoàn tất",        color: "#15803d", bg: "#dcfce7" },
+  delivered:             { label: "Đã giao",         color: "#15803d", bg: "#dcfce7" },
+  cancelled:             { label: "Đã huỷ",          color: "#b91c1c", bg: "#fee2e2" },
   deleted_before_ship:  { label: "Xóa trước khi giao", color: "#0f766e", bg: "#ccfbf1" },
 };
 
 export const PAYMENT_META = {
-  cod:  { label: "COD",   icon: "fa-money-bill-wave", color: "#f59e0b" },
-  vnpay:{ label: "VNPay", icon: "fa-credit-card",     color: "#1d4ed8" },
-  momo: { label: "MoMo",  icon: "fa-mobile-screen",   color: "#a82e8f" },
+  cod:              { label: "COD",              icon: "fa-money-bill-wave", color: "#f59e0b" },
+  vnpay:            { label: "VNPay",           icon: "fa-credit-card",     color: "#1d4ed8" },
+  momo:             { label: "MoMo",            icon: "fa-mobile-screen",   color: "#a82e8f" },
+  bank_transfer:    { label: "Chuyển khoản",     icon: "fa-building-columns", color: "#0e7490" },
+};
+
+// Trạng thái payment → label + màu
+export const PAYMENT_STATUS_META = {
+  pending: { label: "Chờ thanh toán",  color: "#a16207", bg: "#fef3c7" },
+  paid:    { label: "Đã thanh toán",   color: "#15803d", bg: "#dcfce7" },
+  failed:  { label: "Thanh toán lỗi",  color: "#b91c1c", bg: "#fee2e2" },
+};
+
+// Các transition hợp lệ (status hiện tại → status tiếp theo)
+export const STATUS_TRANSITIONS = {
+  awaiting_payment:   ['payment_confirmed', 'cancelled'],
+  payment_confirmed:  ['confirmed', 'cancelled'],
+  pending:            ['confirmed', 'cancelled', 'deleted_before_ship'],
+  confirmed:          ['awaiting_pickup', 'shipping', 'cancelled'],
+  awaiting_pickup:    ['shipping', 'cancelled'],
+  shipping:           ['delivered', 'done', 'cancelled'],
+  delivered:          ['done'],
+  done:               [],
+  cancelled:          [],
+  deleted_before_ship: ['cancelled'],
 };
 
 // ─── Hàm đổi trạng thái (dùng chung) ────────────────────────────────

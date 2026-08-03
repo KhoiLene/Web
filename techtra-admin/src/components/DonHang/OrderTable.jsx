@@ -113,6 +113,25 @@ export default function OrderTable({
     }
   };
 
+  // ─── Manual verify CK: awaiting_payment → payment_confirmed ─────────
+  const handleVerifyPayment = useCallback(async (order) => {
+    if (!window.confirm(
+      `Xác nhận đã nhận tiền cho đơn "${order.order_code || '#' + order.id}"?\n\n` +
+      `Đơn sẽ chuyển sang "Đã nhận tiền" và gửi thông báo Email + Zalo cho khách.`
+    )) return;
+    setUpdatingId(order.id);
+    try {
+      const updated = await ordersApi.verifyPayment(order.id);
+      onChangeStatus?.(order, updated?.status || 'payment_confirmed');
+      onReload?.();
+      alert("✅ Đã xác nhận nhận tiền. Thông báo đang được gửi.");
+    } catch (err) {
+      alert("❌ " + err.message);
+    } finally {
+      setUpdatingId(null);
+    }
+  }, [onChangeStatus, onReload]);
+
   // ─── J&T: tạo vận đơn cho 1 đơn ─────────────────────────────────
   const handleCreateJT = useCallback(async (order) => {
     if (!window.confirm(`Tạo vận đơn J&T cho đơn "${order.order_code || "#" + order.id}"?`)) return;
@@ -341,6 +360,49 @@ export default function OrderTable({
                         {o.customer_phone && <span><i className="fas fa-phone"></i> {o.customer_phone}</span>}
                         {o.customer_email && <span><i className="fas fa-envelope"></i> {o.customer_email}</span>}
                       </div>
+                      {/* Notification badges (mở rộng 2026-08) */}
+                      {(o.notify_email_status || o.notify_zalo_status) && (
+                        <div className="dh-notify-badges" style={{ marginTop: 4, display: "flex", gap: 4 }}>
+                          {o.notify_email_status && (
+                            <span
+                              className="dh-notify-badge"
+                              title={`Email: ${o.notify_email_status}${o.notify_last_error ? ' — ' + o.notify_last_error.slice(0, 60) : ''}`}
+                              style={{
+                                fontSize: 10,
+                                padding: "1px 5px",
+                                borderRadius: 8,
+                                background: o.notify_email_status === 'sent' ? '#dcfce7' :
+                                            o.notify_email_status === 'failed' ? '#fee2e2' : '#fef3c7',
+                                color: o.notify_email_status === 'sent' ? '#15803d' :
+                                       o.notify_email_status === 'failed' ? '#b91c1c' : '#a16207',
+                              }}
+                            >
+                              <i className="fas fa-envelope"></i>
+                              {o.notify_email_status === 'sent' ? ' ✓' :
+                               o.notify_email_status === 'failed' ? ' ✗' : ' …'}
+                            </span>
+                          )}
+                          {o.notify_zalo_status && (
+                            <span
+                              className="dh-notify-badge"
+                              title={`Zalo: ${o.notify_zalo_status}${o.notify_last_error ? ' — ' + o.notify_last_error.slice(0, 60) : ''}`}
+                              style={{
+                                fontSize: 10,
+                                padding: "1px 5px",
+                                borderRadius: 8,
+                                background: o.notify_zalo_status === 'sent' ? '#dcfce7' :
+                                            o.notify_zalo_status === 'failed' ? '#fee2e2' : '#fef3c7',
+                                color: o.notify_zalo_status === 'sent' ? '#15803d' :
+                                       o.notify_zalo_status === 'failed' ? '#b91c1c' : '#a16207',
+                              }}
+                            >
+                              <i className="fas fa-comment"></i>
+                              {o.notify_zalo_status === 'sent' ? ' ✓' :
+                               o.notify_zalo_status === 'failed' ? ' ✗' : ' …'}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <span className="dh-payment" style={{ color: pm.color }}>
@@ -458,23 +520,99 @@ export default function OrderTable({
                           </>
                         )}
 
+                        {/* ─── Flow CK: awaiting_payment → payment_confirmed (mở rộng 2026-08) */}
+                        {o.status === "awaiting_payment" && (
+                          <>
+                            <button
+                              className="dh-icon-btn confirm"
+                              onClick={() => handleVerifyPayment(o)}
+                              disabled={updatingId === o.id}
+                              title="Xác nhận đã nhận tiền (auto-verify) — chuyển sang payment_confirmed"
+                              style={{ background: "#dcfce7", color: "#15803d" }}
+                            >
+                              <i className="fas fa-money-bill"></i>
+                            </button>
+                            <button
+                              className="dh-icon-btn cancel"
+                              onClick={() => handleStatus(o, "cancelled")}
+                              disabled={updatingId === o.id}
+                              title="Huỷ đơn"
+                            >
+                              <i className="fas fa-ban"></i>
+                            </button>
+                          </>
+                        )}
+
+                        {o.status === "payment_confirmed" && (
+                          <button
+                            className="dh-icon-btn confirm"
+                            onClick={() => handleStatus(o, "confirmed")}
+                            disabled={updatingId === o.id}
+                            title="Đã nhận tiền — chuyển sang xác nhận để chuẩn bị hàng"
+                          >
+                            <i className="fas fa-check"></i>
+                          </button>
+                        )}
+
                         {o.status === "confirmed" && (
+                          <>
+                            <button
+                              className="dh-icon-btn"
+                              onClick={() => handleStatus(o, "awaiting_pickup")}
+                              disabled={updatingId === o.id}
+                              title="Sẵn sàng giao — chờ shipper lấy hàng"
+                            >
+                              <i className="fas fa-box"></i>
+                            </button>
+                            <button
+                              className="dh-icon-btn ship"
+                              onClick={() => handleStatus(o, "shipping")}
+                              disabled={updatingId === o.id}
+                              title="Chuyển sang đang giao"
+                            >
+                              <i className="fas fa-truck"></i>
+                            </button>
+                          </>
+                        )}
+
+                        {o.status === "awaiting_pickup" && (
                           <button
                             className="dh-icon-btn ship"
                             onClick={() => handleStatus(o, "shipping")}
                             disabled={updatingId === o.id}
-                            title="Chuyển sang đang giao"
+                            title="Shipper đã lấy — chuyển sang đang giao"
                           >
                             <i className="fas fa-truck"></i>
                           </button>
                         )}
 
                         {o.status === "shipping" && (
+                          <>
+                            <button
+                              className="dh-icon-btn done"
+                              onClick={() => handleStatus(o, "delivered")}
+                              disabled={updatingId === o.id}
+                              title="Đã giao thành công"
+                            >
+                              <i className="fas fa-house-circle-check"></i>
+                            </button>
+                            <button
+                              className="dh-icon-btn done"
+                              onClick={() => handleStatus(o, "done")}
+                              disabled={updatingId === o.id}
+                              title="Hoàn tất (sẽ cộng LTV)"
+                            >
+                              <i className="fas fa-circle-check"></i>
+                            </button>
+                          </>
+                        )}
+
+                        {o.status === "delivered" && (
                           <button
                             className="dh-icon-btn done"
                             onClick={() => handleStatus(o, "done")}
                             disabled={updatingId === o.id}
-                            title="Đã nhận hàng — hoàn tất (sẽ cộng LTV)"
+                            title="Hoàn tất (sẽ cộng LTV)"
                           >
                             <i className="fas fa-circle-check"></i>
                           </button>

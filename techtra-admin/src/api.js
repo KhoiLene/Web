@@ -856,6 +856,21 @@ export const ordersApi = {
     const r = await request("POST", `/orders/bulk-confirm`, { ids });
     return r.data || [];
   },
+  // Admin manual verify CK (chuyển awaiting_payment → payment_confirmed)
+  async verifyPayment(id) {
+    const r = await request("POST", `/orders/${id}/verify-payment`, {});
+    return r.data;
+  },
+  // Retry tất cả notification failed
+  async retryNotifications(limit = 100) {
+    const r = await request("POST", `/notifications/retry`, { limit });
+    return r.data;
+  },
+  // Lấy notification log cho 1 đơn
+  async getNotifications(orderId) {
+    const r = await request("GET", `/orders/${orderId}/notifications`);
+    return r.data || [];
+  },
   // Lấy danh sách items của 1 order (qua generic endpoint /api/db/order_items)
   async getItems(orderId) {
     const r = await request(
